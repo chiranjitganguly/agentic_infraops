@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [master, initial_phase, "001-*", "feat/*", "fix/*"]
+  pull_request:
+    branches: [master]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ─── Lint & Format ──────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install linting tools
+        run: pip install ruff black
+
+      - name: Ruff lint
+        run: ruff check agentic_infraops infrastructure tests
+
+      - name: Black format check
+        run: black --check agentic_infraops infrastructure tests
+
+  # ─── Type Check ─────────────────────────────────────────────────────────────
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install mypy pydantic[mypy]
+          pip install -e "agentic_infraops/agents/orchestrator[dev]"
+          pip install -e "agentic_infraops/agents/provisioning[dev]"
+          pip install -e "agentic_infraops/agents/enquiry[dev]"
+          pip install -e "agentic_infraops/agents/faq[dev]"
+
+      - name: mypy
+        run: mypy agentic_infraops --ignore-missing-imports
+
+  # ─── Unit Tests ─────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pydantic structlog circuitbreaker
+
+      - name: Run unit tests
+        run: pytest tests/unit -m "not integration" --tb=short
+
+  # ─── Contract Tests ─────────────────────────────────────────────────────────
+  contract-tests:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pytest pytest-asyncio pydantic
+
+      - name: Run contract tests
+        run: pytest tests/contract -m "contract" --tb=short
+
+  # ─── Schema Validation ──────────────────────────────────────────────────────
+  schema-validation:
+    name: Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pydantic
+
+      - name: Validate all Pydantic schemas import cleanly
+        run: |
+          python -c "
+          from agentic_infraops.contracts.schemas import infra_request, provisioning_job, user_role, audit_event, faq_query
+          from agentic_infraops.contracts.events import pubsub_events
+          from agentic_infraops.contracts.agents import orchestrator, provisioning, enquiry, faq
+          print('All schema imports OK')
+          "
+
+  # ─── Docker Build Check ─────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose syntax
+        run: |
+          docker compose -f docker/docker-compose.yml config --quiet

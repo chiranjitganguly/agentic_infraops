@@ -1,0 +1,67 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: local
+    service: agentic-infraops
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+alerting:
+  alertmanagers: []
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: litellm
+    static_configs:
+      - targets: [litellm:4000]
+    metrics_path: /metrics
+
+  - job_name: orchestrator-agent
+    static_configs:
+      - targets: [orchestrator-agent:8001]
+    metrics_path: /metrics
+
+  - job_name: provisioning-agent
+    static_configs:
+      - targets: [provisioning-agent:8002]
+    metrics_path: /metrics
+
+  - job_name: enquiry-agent
+    static_configs:
+      - targets: [enquiry-agent:8003]
+    metrics_path: /metrics
+
+  - job_name: faq-agent
+    static_configs:
+      - targets: [faq-agent:8004]
+    metrics_path: /metrics
+
+  - job_name: web-backend
+    static_configs:
+      - targets: [web-backend:8000]
+    metrics_path: /metrics
+
+  - job_name: mcp-gcp-resource
+    static_configs:
+      - targets: [mcp-gcp-resource:9100]
+    metrics_path: /metrics
+
+  - job_name: mcp-postgres
+    static_configs:
+      - targets: [mcp-postgres:9101]
+    metrics_path: /metrics
+
+  - job_name: mcp-pubsub
+    static_configs:
+      - targets: [mcp-pubsub:9102]
+    metrics_path: /metrics
+
+  - job_name: mcp-knowledge-base
+    static_configs:
+      - targets: [mcp-knowledge-base:9103]
+    metrics_path: /metrics

@@ -1,3 +1,65 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
 /venv
-README.md
+venv/
+.venv/
+env/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Secrets (never commit)
+secrets/
+*.pem
+*.key
+*.json.secret
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Terraform state
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.backup
+infrastructure/terraform/.terraform.lock.hcl
+
+# Docker volumes (local data)
+postgres-data/
+qdrant-data/
+airflow-logs/
+
+# Instructions / internal
 /instructions
+/skills-lock.json
