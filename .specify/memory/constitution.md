@@ -354,7 +354,7 @@ Avoiding provider lock-in improves long-term flexibility.
 | Capability | Standard |
 |---|---|
 | Programming Language | Python |
-| Agent Framework | Google ADK |
+| Agent Framework | Google Agent Development Kit |
 | Workflow Engine | Apache Airflow |
 | Service Catalog | Backstage |
 | Messaging | Pub/Sub |

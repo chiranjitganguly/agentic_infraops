@@ -5,12 +5,12 @@
 
 ## Summary
 
-Build a multi-agent, event-driven infrastructure self-service platform on GCP supporting VM provisioning, storage bucket provisioning, resource status enquiry, and FAQ/best-practice guidance. The platform is delivered as a locally runnable Docker Compose stack, with Google ADK agents communicating via native A2A protocol, Apache Airflow executing provisioning workflows triggered by Cloud PubSub, and a custom web UI with SSE-based real-time updates. All external integrations are accessed through MCP servers. LiteLLM provides the unified LLM access layer.
+Build a multi-agent, event-driven infrastructure self-service platform on GCP supporting VM provisioning, storage bucket provisioning, resource status enquiry, and FAQ/best-practice guidance. The platform is delivered as a locally runnable Docker Compose stack, with Google Agent Development Kit agents communicating via native A2A protocol, Apache Airflow executing provisioning workflows triggered by Cloud PubSub, and a custom web UI with SSE-based real-time updates. All external integrations are accessed through MCP servers. LiteLLM provides the unified LLM access layer.
 
 ## Technical Context
 
 **Language/Version**: Python 3.11+
-**Primary Dependencies**: Google ADK (agent framework), Apache Airflow 2.8+ (workflow engine), LiteLLM (LLM gateway), Pydantic v2 (schema validation), FastAPI (web UI backend + SSE), asyncpg (async PostgreSQL), Qdrant (local vector DB), google-api-python-client (Gmail API), google-cloud-pubsub (PubSub + emulator), apache-airflow-providers-google (PubSub sensors), mcp (MCP server library), pytest + pytest-asyncio (testing)
+**Primary Dependencies**: Google Agent Development Kit (agent framework), Apache Airflow 2.8+ (workflow engine), LiteLLM (LLM gateway), Pydantic v2 (schema validation), FastAPI (web UI backend + SSE), asyncpg (async PostgreSQL), Qdrant (local vector DB), google-api-python-client (Gmail API), google-cloud-pubsub (PubSub + emulator), apache-airflow-providers-google (PubSub sensors), mcp (MCP server library), pytest + pytest-asyncio (testing)
 **Storage**: PostgreSQL 15 in Docker (ProvisioningJob state, audit log, user roles, API keys); Qdrant in Docker (FAQ knowledge base — hybrid BM25 + dense vector)
 **Testing**: pytest with pytest-asyncio; contract tests via pydantic validation; Airflow DAG unit tests via `pytest-airflow`
 **Target Platform**: Docker Compose (local development); GCP + Kubernetes (future cloud deployment)
@@ -34,7 +34,7 @@ Build a multi-agent, event-driven infrastructure self-service platform on GCP su
 | VII. Agent Governance | ✅ Pass | Each agent has explicit contract; business logic in skills, not DAGs; DAGs are thin orchestration wrappers |
 | VIII. Knowledge & FAQ | ✅ Pass | Hybrid retrieval (BM25 + vector); Qdrant; source attribution enforced |
 | IX. Cloud Extensibility | ✅ Pass | GCP logic isolated behind MCP server adapters and skills |
-| X. Approved Technology | ✅ Pass | Python, ADK, Airflow, Backstage, PubSub, GCP, LiteLLM, MCP, pytest, Docker — all approved |
+| X. Approved Technology | ✅ Pass | Python, Google ADK, Airflow, Backstage, PubSub, GCP, LiteLLM, MCP, pytest, Docker — all approved |
 | XI. Skills-First | ✅ Pass | Six shared skill packages defined; agents orchestrate skills |
 | XII. LLM Access | ✅ Pass | All LLM access via LiteLLM gateway; direct provider SDK prohibited |
 | XIII. Python Engineering | ✅ Pass | Type hints, Pydantic, Ruff, Black, async-first patterns |
@@ -197,7 +197,7 @@ tests/
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Orchestration complexity — ADK A2A protocol learning curve | High | High | Build tracer-bullet A2A flow (orchestrator → provisioning agent) in Phase 5 before full implementation |
+| Orchestration complexity — Google Agent Development Kit A2A protocol learning curve | High | High | Build tracer-bullet A2A flow (orchestrator → provisioning agent) in Phase 5 before full implementation |
 | Schema evolution — PubSub message format changes | Medium | High | Version all events from day one; additive-only evolution policy enforced in CI |
 | PubSub message reliability — at-least-once delivery causing duplicate jobs | Medium | High | Idempotency key enforced at PostgreSQL level before job creation |
 | Agent hallucination — LLM misclassifies intent or generates invalid parameters | High | Medium | Evaluation dataset + classification accuracy gate (≥90% SC-002); dry-run validation before execution |
