@@ -25,18 +25,18 @@
 
 **Purpose**: Monorepo scaffolding, Docker Compose stack, Python packaging, CI/CD gates
 
-- [ ] T001 Create monorepo directory structure per plan.md (`agents/`, `skills/`, `mcp_servers/`, `workflows/`, `contracts/`, `web/`, `evaluations/`, `infrastructure/`, `docker/`, `observability/`, `docs/`, `tests/`)
-- [ ] T002 [P] Initialise Python package structure — create `pyproject.toml` for each package: `agents/orchestrator`, `agents/provisioning`, `agents/enquiry`, `agents/faq`, `skills/intent_classification`, `skills/gcp_compute`, `skills/gcp_storage`, `skills/gcp_network`, `skills/status_query`, `skills/document_retrieval`
-- [ ] T003 [P] Initialise Python package structure for MCP servers — create `pyproject.toml` for each: `mcp_servers/gcp_resource`, `mcp_servers/knowledge_base`, `mcp_servers/postgres`, `mcp_servers/pubsub`, `mcp_servers/airflow`, `mcp_servers/backstage`, `mcp_servers/gmail`
-- [ ] T004 [P] Write `docker/docker-compose.yml` defining all services: `postgres`, `qdrant`, `pubsub-emulator`, `litellm`, `airflow-webserver`, `airflow-scheduler`, `airflow-worker`, `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent`, `web-backend`, `web-frontend`, `gmail-poller`, `notification-service`, `prometheus`, `grafana`
-- [ ] T005 [P] Write `docker/services/` Dockerfiles for each service (one per agent, one per MCP server, one for web-backend, one for gmail-poller, one for notification-service)
-- [ ] T006 [P] Write `.env.example` with all required environment variables per `quickstart.md`
-- [ ] T007 [P] Configure Ruff (linting) and Black (formatting) — create `pyproject.toml` at repo root with `[tool.ruff]` and `[tool.black]` sections
-- [ ] T008 [P] Set up CI/CD scaffolding — create `.github/workflows/ci.yml` with gates: lint, type-check, unit tests, contract tests, schema validation
-- [ ] T009 [P] Write `infrastructure/scripts/migrate.py` — PostgreSQL migration runner (applies SQL files in `infrastructure/db/migrations/` in order)
-- [ ] T010 [P] Write `infrastructure/scripts/seed_knowledge_base.py` — chunks and indexes Markdown files from `docs/knowledge/` into Qdrant collection `infraops_knowledge_base`
-- [ ] T011 [P] Write `infrastructure/scripts/create_user.py` — creates a `UserRole` row, generates and prints a plaintext API key (bcrypt-hashed before storage)
-- [ ] T012 [P] Write `observability/prometheus/prometheus.yml` and `observability/grafana/dashboards/` with basic InfraOps dashboard (job status counts, intent classification latency, circuit breaker states)
+- [x] T001 Create monorepo directory structure per plan.md (`agents/`, `skills/`, `mcp_servers/`, `workflows/`, `contracts/`, `web/`, `evaluations/`, `infrastructure/`, `docker/`, `observability/`, `docs/`, `tests/`)
+- [x] T002 [P] Initialise Python package structure — create `pyproject.toml` for each package: `agents/orchestrator`, `agents/provisioning`, `agents/enquiry`, `agents/faq`, `skills/intent_classification`, `skills/gcp_compute`, `skills/gcp_storage`, `skills/gcp_network`, `skills/status_query`, `skills/document_retrieval`
+- [x] T003 [P] Initialise Python package structure for MCP servers — create `pyproject.toml` for each: `mcp_servers/gcp_resource`, `mcp_servers/knowledge_base`, `mcp_servers/postgres`, `mcp_servers/pubsub`, `mcp_servers/airflow`, `mcp_servers/backstage`, `mcp_servers/gmail`
+- [x] T004 [P] Write `docker/docker-compose.yml` defining all services: `postgres`, `qdrant`, `pubsub-emulator`, `litellm`, `airflow-webserver`, `airflow-scheduler`, `airflow-worker`, `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent`, `web-backend`, `web-frontend`, `gmail-poller`, `notification-service`, `prometheus`, `grafana`
+- [x] T005 [P] Write `docker/services/` Dockerfiles for each service (one per agent, one per MCP server, one for web-backend, one for gmail-poller, one for notification-service)
+- [x] T006 [P] Write `.env.example` with all required environment variables per `quickstart.md`
+- [x] T007 [P] Configure Ruff (linting) and Black (formatting) — create `pyproject.toml` at repo root with `[tool.ruff]` and `[tool.black]` sections
+- [x] T008 [P] Set up CI/CD scaffolding — create `.github/workflows/ci.yml` with gates: lint, type-check, unit tests, contract tests, schema validation
+- [x] T009 [P] Write `infrastructure/scripts/migrate.py` — PostgreSQL migration runner (applies SQL files in `infrastructure/db/migrations/` in order)
+- [x] T010 [P] Write `infrastructure/scripts/seed_knowledge_base.py` — chunks and indexes Markdown files from `docs/knowledge/` into Qdrant collection `infraops_knowledge_base`
+- [x] T011 [P] Write `infrastructure/scripts/create_user.py` — creates a `UserRole` row, generates and prints a plaintext API key (bcrypt-hashed before storage)
+- [x] T012 [P] Write `observability/prometheus/prometheus.yml` and `observability/grafana/dashboards/` with basic InfraOps dashboard (job status counts, intent classification latency, circuit breaker states)
 
 ---
 
@@ -48,32 +48,32 @@
 
 ### Database Schema
 
-- [ ] T013 Write PostgreSQL schema migration `infrastructure/db/migrations/001_initial_schema.sql` — creates all enums (`channel_type`, `intent_type`, `request_status`, `job_status`, `resource_type_enum`, `user_role_type`), tables (`infra_requests`, `provisioning_jobs`, `faq_queries`, `audit_events`, `user_roles`), indexes, and the `updated_at` trigger function per `data-model.md`. Use `awaiting_confirmation` and `queued` in `job_status` enum (not `pending`).
-- [ ] T014 Write PostgreSQL migration `infrastructure/db/migrations/002_notify_trigger.sql` — creates `notify_job_status_change()` trigger function and attaches it to `provisioning_jobs.status` updates (drives SSE via LISTEN/NOTIFY)
-- [ ] T015 Write PostgreSQL migration `infrastructure/db/migrations/003_immutable_audit.sql` — creates `no_update_audit_events` and `no_delete_audit_events` rules on `audit_events` table
+- [x] T013 Write PostgreSQL schema migration `infrastructure/db/migrations/001_initial_schema.sql` — creates all enums (`channel_type`, `intent_type`, `request_status`, `job_status`, `resource_type_enum`, `user_role_type`), tables (`infra_requests`, `provisioning_jobs`, `faq_queries`, `audit_events`, `user_roles`), indexes, and the `updated_at` trigger function per `data-model.md`. Use `awaiting_confirmation` and `queued` in `job_status` enum (not `pending`).
+- [x] T014 Write PostgreSQL migration `infrastructure/db/migrations/002_notify_trigger.sql` — creates `notify_job_status_change()` trigger function and attaches it to `provisioning_jobs.status` updates (drives SSE via LISTEN/NOTIFY)
+- [x] T015 Write PostgreSQL migration `infrastructure/db/migrations/003_immutable_audit.sql` — creates `no_update_audit_events` and `no_delete_audit_events` rules on `audit_events` table
 
 ### Shared Pydantic Contract Models
 
-- [ ] T016 [P] Create `contracts/schemas/infra_request.py` — Pydantic v2 models: `InfraRequestCreate`, `InfraRequest`, `InfraRequestStatus` enum (all states from `data-model.md`), `ChannelType` enum with `web` and `email` values
-- [ ] T017 [P] Create `contracts/schemas/provisioning_job.py` — Pydantic v2 models: `ProvisioningJobCreate`, `ProvisioningJob`, `JobStatus` enum (`awaiting_confirmation`, `queued`, `in_progress`, `retrying`, `rollback`, `succeeded`, `failed`, `cancelled`), `ResourceType` enum, `RollbackResource` model
-- [ ] T018 [P] Create `contracts/schemas/user_role.py` — Pydantic v2 models: `UserRole`, `UserRoleType` enum (`developer`, `platform_engineer`), `DeveloperGuardrails` (allowed regions, machine types, storage classes)
-- [ ] T019 [P] Create `contracts/schemas/audit_event.py` — Pydantic v2 models: `AuditEventCreate`, `AuditEvent`, `AuditEventType` enum (all 21 event types from `data-model.md`)
-- [ ] T020 [P] Create `contracts/schemas/faq_query.py` — Pydantic v2 models: `FAQQueryCreate`, `FAQQuery`, `RetrievedChunk`
-- [ ] T021 [P] Create `contracts/events/pubsub_events.py` — Pydantic v2 models for all PubSub message schemas: `ProvisioningRequestEvent`, `ProvisioningStatusEvent`, `AuditEventMessage` per `contracts/pubsub-events.md` schema v1.0.0
-- [ ] T022 [P] Create `contracts/agents/orchestrator.py` — Pydantic v2 models: `OrchestratorInput`, `OrchestratorOutput`, `Outcome` enum per `contracts/a2a-agents.md`
-- [ ] T023 [P] Create `contracts/agents/provisioning.py` — Pydantic v2 models: `ProvisioningInput`, `ProvisioningConfirmationOutput`, `ProvisioningQueuedOutput`, `ProvisioningErrorOutput`, `VMParameters`, `BucketParameters`, `VPCParameters` per `contracts/a2a-agents.md`
-- [ ] T024 [P] Create `contracts/agents/enquiry.py` — Pydantic v2 models: `EnquiryInput`, `EnquiryFoundOutput`, `EnquiryNotFoundOutput`, `EnquiryAccessDeniedOutput` per `contracts/a2a-agents.md`
-- [ ] T025 [P] Create `contracts/agents/faq.py` — Pydantic v2 models: `FAQInput`, `FAQAnsweredOutput`, `FAQNoResultsOutput`, `Source` per `contracts/a2a-agents.md`
+- [x] T016 [P] Create `contracts/schemas/infra_request.py` — Pydantic v2 models: `InfraRequestCreate`, `InfraRequest`, `InfraRequestStatus` enum (all states from `data-model.md`), `ChannelType` enum with `web` and `email` values
+- [x] T017 [P] Create `contracts/schemas/provisioning_job.py` — Pydantic v2 models: `ProvisioningJobCreate`, `ProvisioningJob`, `JobStatus` enum (`awaiting_confirmation`, `queued`, `in_progress`, `retrying`, `rollback`, `succeeded`, `failed`, `cancelled`), `ResourceType` enum, `RollbackResource` model
+- [x] T018 [P] Create `contracts/schemas/user_role.py` — Pydantic v2 models: `UserRole`, `UserRoleType` enum (`developer`, `platform_engineer`), `DeveloperGuardrails` (allowed regions, machine types, storage classes)
+- [x] T019 [P] Create `contracts/schemas/audit_event.py` — Pydantic v2 models: `AuditEventCreate`, `AuditEvent`, `AuditEventType` enum (all 21 event types from `data-model.md`)
+- [x] T020 [P] Create `contracts/schemas/faq_query.py` — Pydantic v2 models: `FAQQueryCreate`, `FAQQuery`, `RetrievedChunk`
+- [x] T021 [P] Create `contracts/events/pubsub_events.py` — Pydantic v2 models for all PubSub message schemas: `ProvisioningRequestEvent`, `ProvisioningStatusEvent`, `AuditEventMessage` per `contracts/pubsub-events.md` schema v1.0.0
+- [x] T022 [P] Create `contracts/agents/orchestrator.py` — Pydantic v2 models: `OrchestratorInput`, `OrchestratorOutput`, `Outcome` enum per `contracts/a2a-agents.md`
+- [x] T023 [P] Create `contracts/agents/provisioning.py` — Pydantic v2 models: `ProvisioningInput`, `ProvisioningConfirmationOutput`, `ProvisioningQueuedOutput`, `ProvisioningErrorOutput`, `VMParameters`, `BucketParameters`, `VPCParameters` per `contracts/a2a-agents.md`
+- [x] T024 [P] Create `contracts/agents/enquiry.py` — Pydantic v2 models: `EnquiryInput`, `EnquiryFoundOutput`, `EnquiryNotFoundOutput`, `EnquiryAccessDeniedOutput` per `contracts/a2a-agents.md`
+- [x] T025 [P] Create `contracts/agents/faq.py` — Pydantic v2 models: `FAQInput`, `FAQAnsweredOutput`, `FAQNoResultsOutput`, `Source` per `contracts/a2a-agents.md`
 
 ### Shared Infrastructure Packages
 
-- [ ] T026 [P] Create `contracts/shared/logging.py` — structured logging setup using `structlog`; configures JSON output with mandatory fields: `correlation_id`, `request_id`, `agent_name`, `workflow_name`, `timestamp`; sensitive field redaction (`api_key`, `api_key_hash`, `password`, `token`)
-- [ ] T027 [P] Create `contracts/shared/correlation.py` — `CorrelationContext` dataclass and context-var-based propagation helpers; `inject_correlation_headers()` and `extract_correlation_headers()` for A2A HTTP calls
-- [ ] T028 [P] Create `contracts/shared/metrics.py` — Prometheus metrics registry shared across all services: `provisioning_job_total`, `intent_classification_duration_seconds`, `circuit_breaker_state`, `api_request_duration_seconds`
-- [ ] T029 Create `contracts/shared/circuit_breaker.py` — `@circuit_breaker(failure_threshold=5, recovery_timeout=60)` decorator wrapping the `circuitbreaker` library; exposes circuit state as Prometheus gauge; raises `CircuitOpenError` when open
-- [ ] T030 [P] Create `infrastructure/db/connection.py` — `asyncpg` connection pool factory; reads `DATABASE_URL` from environment; exposes `get_pool()` async context manager
-- [ ] T031 Write `infrastructure/pubsub/setup.py` — creates PubSub topics and subscriptions on startup if they do not exist: `infraops.provisioning.requests` + subscription `infraops-provisioning-requests-vm-sub` and `infraops-provisioning-requests-bucket-sub`; `infraops.provisioning.status` + subscription `infraops-provisioning-status-sub`; `infraops.audit.events` + subscription `infraops-audit-events-sub`
-- [ ] T032 Write `docker/services/litellm/litellm_config.yaml` — LiteLLM proxy config per `research.md`: Gemini default model, embedding model, master key from env, retry/fallback settings, Prometheus metrics at `/metrics`
+- [x] T026 [P] Create `contracts/shared/logging.py` — structured logging setup using `structlog`; configures JSON output with mandatory fields: `correlation_id`, `request_id`, `agent_name`, `workflow_name`, `timestamp`; sensitive field redaction (`api_key`, `api_key_hash`, `password`, `token`)
+- [x] T027 [P] Create `contracts/shared/correlation.py` — `CorrelationContext` dataclass and context-var-based propagation helpers; `inject_correlation_headers()` and `extract_correlation_headers()` for A2A HTTP calls
+- [x] T028 [P] Create `contracts/shared/metrics.py` — Prometheus metrics registry shared across all services: `provisioning_job_total`, `intent_classification_duration_seconds`, `circuit_breaker_state`, `api_request_duration_seconds`
+- [x] T029 Create `contracts/shared/circuit_breaker.py` — `@circuit_breaker(failure_threshold=5, recovery_timeout=60)` decorator wrapping the `circuitbreaker` library; exposes circuit state as Prometheus gauge; raises `CircuitOpenError` when open
+- [x] T030 [P] Create `infrastructure/db/connection.py` — `asyncpg` connection pool factory; reads `DATABASE_URL` from environment; exposes `get_pool()` async context manager
+- [x] T031 Write `infrastructure/pubsub/setup.py` — creates PubSub topics and subscriptions on startup if they do not exist: `infraops.provisioning.requests` + subscription `infraops-provisioning-requests-vm-sub` and `infraops-provisioning-requests-bucket-sub`; `infraops.provisioning.status` + subscription `infraops-provisioning-status-sub`; `infraops.audit.events` + subscription `infraops-audit-events-sub`
+- [x] T032 Write `docker/services/litellm/litellm_config.yaml` — LiteLLM proxy config per `research.md`: Gemini default model, embedding model, master key from env, retry/fallback settings, Prometheus metrics at `/metrics`
 
 **Checkpoint**: Foundation complete. User story phases can now begin in parallel.
 

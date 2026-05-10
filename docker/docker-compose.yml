@@ -1,0 +1,371 @@
+version: "3.9"
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.2-python3.11
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: "30"
+    PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    LITELLM_GATEWAY_URL: http://litellm:4000
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+  volumes:
+    - ./agentic_infraops/workflows/dags:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  # ─── Infrastructure ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=${GCP_PROJECT_ID}
+    ports:
+      - "8085:8085"
+    environment:
+      CLOUDSDK_CORE_PROJECT: ${GCP_PROJECT_ID}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8085 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  litellm:
+    build:
+      context: ./docker/services/litellm
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./docker/services/litellm/litellm_config.yaml:/app/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+
+  # ─── Airflow ─────────────────────────────────────────────────────────────────
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    environment:
+      <<: *airflow-env
+      DUMB_INIT_SETSID: "0"
+
+  airflow-init:
+    <<: *airflow-common
+    command: >
+      bash -c "
+        airflow db upgrade &&
+        airflow users create --username admin --firstname Admin --lastname User
+          --role Admin --email ${AIRFLOW_ADMIN_EMAIL} --password ${AIRFLOW_ADMIN_PASSWORD}
+      "
+    restart: "no"
+
+  # ─── MCP Servers ─────────────────────────────────────────────────────────────
+  mcp-postgres:
+    build:
+      context: ./docker/services/mcp_postgres
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mcp-pubsub:
+    build:
+      context: ./docker/services/mcp_pubsub
+      dockerfile: Dockerfile
+    environment:
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    depends_on:
+      - pubsub-emulator
+
+  mcp-gcp-resource:
+    build:
+      context: ./docker/services/mcp_gcp_resource
+      dockerfile: Dockerfile
+    environment:
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-sa.json
+    volumes:
+      - ${GCP_SA_KEY_PATH}:/secrets/gcp-sa.json:ro
+
+  mcp-knowledge-base:
+    build:
+      context: ./docker/services/mcp_knowledge_base
+      dockerfile: Dockerfile
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: infraops_knowledge_base
+      LITELLM_GATEWAY_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+    depends_on:
+      qdrant:
+        condition: service_healthy
+
+  mcp-backstage:
+    build:
+      context: ./docker/services/mcp_backstage
+      dockerfile: Dockerfile
+    environment:
+      BACKSTAGE_API_URL: ${BACKSTAGE_API_URL}
+      BACKSTAGE_API_TOKEN: ${BACKSTAGE_API_TOKEN}
+
+  mcp-gmail:
+    build:
+      context: ./docker/services/mcp_gmail
+      dockerfile: Dockerfile
+    environment:
+      GMAIL_CREDENTIALS_PATH: /secrets/gmail-creds.json
+      GMAIL_TOKEN_PATH: /secrets/gmail-token.json
+      INFRAOPS_EMAIL: ${INFRAOPS_EMAIL}
+    volumes:
+      - ${GMAIL_CREDENTIALS_PATH}:/secrets/gmail-creds.json:ro
+      - gmail-token:/secrets
+
+  mcp-airflow:
+    build:
+      context: ./docker/services/mcp_airflow
+      dockerfile: Dockerfile
+    environment:
+      AIRFLOW_API_URL: http://airflow-webserver:8080/api/v1
+      AIRFLOW_USERNAME: ${AIRFLOW_ADMIN_EMAIL}
+      AIRFLOW_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    depends_on:
+      airflow-webserver:
+        condition: service_healthy
+
+  # ─── Agents ──────────────────────────────────────────────────────────────────
+  orchestrator-agent:
+    build:
+      context: ./docker/services/orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
+      LITELLM_GATEWAY_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PROVISIONING_AGENT_URL: http://provisioning-agent:8002
+      ENQUIRY_AGENT_URL: http://enquiry-agent:8003
+      FAQ_AGENT_URL: http://faq-agent:8004
+    depends_on:
+      - litellm
+      - mcp-postgres
+
+  provisioning-agent:
+    build:
+      context: ./docker/services/provisioning
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: "8002"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    depends_on:
+      - mcp-postgres
+      - mcp-pubsub
+
+  enquiry-agent:
+    build:
+      context: ./docker/services/enquiry
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      PORT: "8003"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    depends_on:
+      - mcp-postgres
+      - mcp-gcp-resource
+
+  faq-agent:
+    build:
+      context: ./docker/services/faq
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      PORT: "8004"
+      LITELLM_GATEWAY_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      - litellm
+      - mcp-knowledge-base
+      - mcp-postgres
+
+  web-backend:
+    build:
+      context: ./docker/services/web_backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ORCHESTRATOR_AGENT_URL: http://orchestrator-agent:8001
+      PROVISIONING_AGENT_URL: http://provisioning-agent:8002
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      orchestrator-agent:
+        condition: service_started
+
+  web-frontend:
+    image: nginx:alpine
+    ports:
+      - "5173:80"
+    volumes:
+      - ./agentic_infraops/web/frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - web-backend
+
+  gmail-poller:
+    build:
+      context: ./docker/services/gmail_poller
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ORCHESTRATOR_AGENT_URL: http://orchestrator-agent:8001
+      PROVISIONING_AGENT_URL: http://provisioning-agent:8002
+      GMAIL_POLL_INTERVAL_SECONDS: "30"
+    depends_on:
+      - orchestrator-agent
+      - mcp-gmail
+
+  notification-service:
+    build:
+      context: ./docker/services/notification_service
+      dockerfile: Dockerfile
+    environment:
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      PUBSUB_STATUS_SUBSCRIPTION: infraops-provisioning-status-sub
+    depends_on:
+      - pubsub-emulator
+      - mcp-gmail
+
+volumes:
+  postgres-data:
+  qdrant-data:
+  airflow-logs:
+  prometheus-data:
+  grafana-data:
+  gmail-token:
+
+networks:
+  default:
+    name: infraops-network

@@ -1,0 +1,55 @@
+groups:
+  - name: infraops.circuit_breakers
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.tool }}"
+          description: "Circuit breaker for GCP API tool {{ $labels.tool }} is in state {{ $value }} (1=half-open, 2=open)"
+
+      - alert: CircuitBreakerFullyOpen
+        expr: circuit_breaker_state == 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker fully open for {{ $labels.tool }}"
+          description: "GCP API calls to {{ $labels.tool }} are being rejected. Check GCP API health."
+
+  - name: infraops.provisioning
+    rules:
+      - alert: HighProvisioningFailureRate
+        expr: |
+          rate(provisioning_job_total{status="failed"}[5m]) /
+          rate(provisioning_job_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High provisioning failure rate"
+          description: "More than 10% of provisioning jobs are failing over the last 5 minutes"
+
+      - alert: IntentClassificationSlow
+        expr: histogram_quantile(0.95, rate(intent_classification_duration_seconds_bucket[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Intent classification p95 latency > 10s"
+          description: "Intent classification is taking longer than expected. Check LiteLLM gateway health."
+
+  - name: infraops.api
+    rules:
+      - alert: APIHighErrorRate
+        expr: |
+          rate(api_request_duration_seconds_count{status=~"5.."}[5m]) /
+          rate(api_request_duration_seconds_count[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API error rate > 5%"
+          description: "The web backend is returning server errors for > 5% of requests"
