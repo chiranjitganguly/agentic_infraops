@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir hatchling && \
 
 COPY agents/provisioning/ ./agents/provisioning/
 COPY contracts/ ./contracts/
+COPY mcp_servers/ ./mcp_servers/
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 

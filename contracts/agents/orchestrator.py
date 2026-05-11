@@ -42,3 +42,4 @@ class OrchestratorOutput(BaseModel):
     clarification_question: str | None = None
     rejection_reason: str | None = None
     sub_agent_result: dict[str, Any] | None = None
+    violations: list[dict[str, Any]] | None = None

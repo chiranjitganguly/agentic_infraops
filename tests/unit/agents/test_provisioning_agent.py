@@ -61,7 +61,7 @@ async def test_pre_confirm_creates_job_with_correct_idempotency_key_and_expiry()
     ps = make_pubsub()
     before = datetime.now(timezone.utc)
 
-    result = await handle_task(input=make_input(confirmed=False), postgres=pg, pubsub=ps)
+    result = await handle_task(inp=make_input(confirmed=False), postgres=pg, pubsub=ps)
 
     # idempotency key checked with SHA-256(resource_type:name:region)
     pg.get_provisioning_job_by_idempotency_key.assert_called_once_with(
@@ -70,7 +70,7 @@ async def test_pre_confirm_creates_job_with_correct_idempotency_key_and_expiry()
 
     # job created with awaiting_confirmation
     pg.create_provisioning_job.assert_called_once()
-    create_call = pg.create_provisioning_job.call_args.kwargs
+    create_call = pg.create_provisioning_job.call_args.args[0]
     assert create_call["status"] == "awaiting_confirmation"
     assert create_call["idempotency_key"] == expected_idempotency_key()
 
@@ -101,7 +101,7 @@ async def test_pre_confirm_idempotency_conflict_returns_existing_job():
     pg = make_postgres(existing_job=existing_job)
     ps = make_pubsub()
 
-    result = await handle_task(input=make_input(confirmed=False), postgres=pg, pubsub=ps)
+    result = await handle_task(inp=make_input(confirmed=False), postgres=pg, pubsub=ps)
 
     assert result.job_id == JOB_ID
     assert result.existing_job == existing_job
@@ -118,25 +118,25 @@ async def test_post_confirm_transitions_job_to_queued_and_publishes():
     pg = make_postgres(existing_job=existing_job)
     ps = make_pubsub()
 
-    result = await handle_task(input=make_input(confirmed=True), postgres=pg, pubsub=ps)
+    result = await handle_task(inp=make_input(confirmed=True), postgres=pg, pubsub=ps)
 
     # InfraRequest moved to confirmed
     pg.update_request_status.assert_called_once()
     req_call = pg.update_request_status.call_args.kwargs
-    assert req_call["infra_request_id"] == INFRA_REQUEST_ID
+    assert req_call["infra_request_id"] == str(INFRA_REQUEST_ID)
     assert req_call["status"] == "confirmed"
     assert req_call["confirmed_at"] is not None
 
     # ProvisioningJob moved to queued
     pg.update_job_status.assert_called_once()
     job_call = pg.update_job_status.call_args.kwargs
-    assert job_call["job_id"] == JOB_ID
+    assert job_call["job_id"] == str(JOB_ID)
     assert job_call["status"] == "queued"
 
     # PubSub event published
     ps.publish_provisioning_request.assert_called_once()
-    pub_call = ps.publish_provisioning_request.call_args.kwargs
-    assert pub_call["job_id"] == JOB_ID
+    pub_call = ps.publish_provisioning_request.call_args.kwargs["event"]
+    assert pub_call["job_id"] == str(JOB_ID)
     assert pub_call["resource_type"] == "compute_instance"
 
     # audit event emitted

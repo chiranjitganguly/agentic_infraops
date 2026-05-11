@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
-from typing import Callable
+from typing import Awaitable, Callable
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -54,7 +54,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         if request.url.path in _EXEMPT_PATHS:
             return await call_next(request)
 

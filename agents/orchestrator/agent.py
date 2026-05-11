@@ -23,6 +23,7 @@ from typing import Any, AsyncGenerator, Protocol
 
 import httpx
 from google.adk.agents import BaseAgent
+from mcp_servers.postgres.server import increment_daily_usage as _pg_increment_daily_usage
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.genai import types as genai_types
@@ -39,8 +40,8 @@ from contracts.agents.orchestrator import (
 from contracts.schemas.infra_request import ChannelType, IntentType
 from contracts.schemas.user_role import DeveloperGuardrails, UserRoleType
 from contracts.shared.correlation import (
+    CorrelationContext,
     inject_correlation_headers,
-    new_correlation_context,
     set_correlation_context,
 )
 from contracts.shared.logging import configure_logging, get_logger
@@ -61,6 +62,10 @@ logger = get_logger("orchestrator-agent")
 class PostgresClient(Protocol):
     async def increment_daily_usage(self, requesting_user: str) -> dict: ...
     async def get_user_role(self, user_id: str) -> dict: ...
+
+
+class ClassifierClient(Protocol):
+    async def classify(self, raw_input: str, channel: str) -> ClassificationResult: ...
 
 
 class SubAgentClient(Protocol):
@@ -103,23 +108,28 @@ async def _call_sub_agent(agent_url: str, task_data: dict[str, Any]) -> dict[str
 
 
 async def route(
-    inp: OrchestratorInput,
+    *,
+    input: OrchestratorInput,
     postgres: PostgresClient,
     provisioning_agent: SubAgentClient,
     enquiry_agent: SubAgentClient,
+    classifier: ClassifierClient | None = None,
     guardrails: DeveloperGuardrails | None = None,
 ) -> OrchestratorOutput:
     """Core orchestrator routing logic (injectable for testing)."""
     if guardrails is None:
         guardrails = _default_guardrails()
 
-    classification: ClassificationResult = await classify(inp.raw_input, inp.channel)
+    classifier_client = classifier if classifier is not None else _DefaultClassifier()
+    classification: ClassificationResult = await classifier_client.classify(
+        input.raw_input, input.channel
+    )
 
     if classification.confidence < 0.7:
-        if inp.channel == ChannelType.email:
+        if input.channel == ChannelType.email:
             return OrchestratorOutput(
-                correlation_id=inp.correlation_id,
-                request_id=inp.request_id,
+                correlation_id=input.correlation_id,
+                request_id=input.request_id,
                 outcome=Outcome.rejected,
                 intent=IntentType(classification.intent) if classification.intent in IntentType._value2member_map_ else None,
                 confidence=classification.confidence,
@@ -134,8 +144,8 @@ async def route(
             IntentCandidate(intent=classification.intent, confidence=classification.confidence),
         ])
         return OrchestratorOutput(
-            correlation_id=inp.correlation_id,
-            request_id=inp.request_id,
+            correlation_id=input.correlation_id,
+            request_id=input.request_id,
             outcome=Outcome.clarification_needed,
             intent=IntentType(classification.intent) if classification.intent in IntentType._value2member_map_ else None,
             confidence=classification.confidence,
@@ -146,22 +156,32 @@ async def route(
     if (
         classification.intent == "provision"
         and classification.resource_type == "vpc_network"
-        and inp.user_role == UserRoleType.developer
+        and input.user_role == UserRoleType.developer
     ):
-        validate_vpc_guardrail(inp.user_role)
-        return OrchestratorOutput(
-            correlation_id=inp.correlation_id,
-            request_id=inp.request_id,
-            outcome=Outcome.guardrail_violation,
-            intent=IntentType.provision,
-            confidence=classification.confidence,
-        )
+        vpc_guardrail = validate_vpc_guardrail(input.user_role)
+        if not vpc_guardrail.passed:
+            violations = [
+                {
+                    "field": violation.field,
+                    "provided": violation.provided,
+                    "allowed": violation.allowed,
+                }
+                for violation in vpc_guardrail.violations
+            ]
+            return OrchestratorOutput(
+                correlation_id=input.correlation_id,
+                request_id=input.request_id,
+                outcome=Outcome.guardrail_violation,
+                intent=IntentType.provision,
+                confidence=classification.confidence,
+                violations=violations,
+            )
 
     # Validate developer guardrails for compute_instance provisioning
     if (
         classification.intent == "provision"
         and classification.resource_type == "compute_instance"
-        and inp.user_role == UserRoleType.developer
+        and input.user_role == UserRoleType.developer
     ):
         from contracts.agents.provisioning import VMParameters
 
@@ -169,25 +189,34 @@ async def route(
         guardrail_result = validate_developer_guardrails(
             params=vm_params,
             region=classification.region or "",
-            user_role=inp.user_role,
+            user_role=input.user_role,
             guardrails=guardrails,
         )
         if not guardrail_result.passed:
+            violations = [
+                {
+                    "field": violation.field,
+                    "provided": violation.provided,
+                    "allowed": violation.allowed,
+                }
+                for violation in guardrail_result.violations
+            ]
             return OrchestratorOutput(
-                correlation_id=inp.correlation_id,
-                request_id=inp.request_id,
+                correlation_id=input.correlation_id,
+                request_id=input.request_id,
                 outcome=Outcome.guardrail_violation,
                 intent=IntentType.provision,
                 confidence=classification.confidence,
+                violations=violations,
             )
 
     # Daily rate limit check (developers only)
-    if classification.intent == "provision" and inp.user_role == UserRoleType.developer:
-        usage = await postgres.increment_daily_usage(requesting_user=inp.requesting_user)
+    if classification.intent == "provision" and input.user_role == UserRoleType.developer:
+        usage = await postgres.increment_daily_usage(requesting_user=input.requesting_user)
         if usage.get("limit_reached"):
             return OrchestratorOutput(
-                correlation_id=inp.correlation_id,
-                request_id=inp.request_id,
+                correlation_id=input.correlation_id,
+                request_id=input.request_id,
                 outcome=Outcome.rate_limited,
                 intent=IntentType.provision,
                 confidence=classification.confidence,
@@ -196,31 +225,61 @@ async def route(
     # Route to sub-agent
     if classification.intent == "provision":
         sub_result = await provisioning_agent.submit(
-            correlation_id=str(inp.correlation_id),
-            request_id=str(inp.request_id),
+            correlation_id=str(input.correlation_id),
+            request_id=str(input.request_id),
             classification=classification,
-            requesting_user=inp.requesting_user,
-            user_role=inp.user_role,
+            requesting_user=input.requesting_user,
+            user_role=input.user_role,
         )
     elif classification.intent == "enquiry":
         sub_result = await enquiry_agent.submit(
-            correlation_id=str(inp.correlation_id),
-            request_id=str(inp.request_id),
+            correlation_id=str(input.correlation_id),
+            request_id=str(input.request_id),
             classification=classification,
-            requesting_user=inp.requesting_user,
-            user_role=inp.user_role,
+            requesting_user=input.requesting_user,
+            user_role=input.user_role,
         )
     else:
         sub_result = {}
 
     return OrchestratorOutput(
-        correlation_id=inp.correlation_id,
-        request_id=inp.request_id,
+        correlation_id=input.correlation_id,
+        request_id=input.request_id,
         outcome=Outcome.routed,
         intent=IntentType(classification.intent) if classification.intent in IntentType._value2member_map_ else None,
         confidence=classification.confidence,
         sub_agent_result=sub_result,
     )
+
+
+class _DefaultClassifier(ClassifierClient):
+    async def classify(self, raw_input: str, channel: str) -> ClassificationResult:  # noqa: D401
+        return await classify(raw_input, channel)
+
+
+class _DefaultPostgresClient:
+    async def increment_daily_usage(self, requesting_user: str) -> dict:
+        return await _pg_increment_daily_usage(requesting_user)
+
+    async def get_user_role(self, user_id: str) -> dict:
+        return {}
+
+
+class _A2AClient:
+    def __init__(self, url: str) -> None:
+        self._url = url
+
+    async def submit(self, **kwargs: Any) -> dict:
+        return await _call_sub_agent(
+            self._url,
+            {
+                "id": str(uuid.uuid4()),
+                "message": {
+                    "role": "user",
+                    "parts": [{"type": "data", "data": kwargs}],
+                },
+            },
+        )
 
 
 # ─── ADK Agent ──────────────────────────────────────────────────────────────
@@ -256,43 +315,21 @@ class OrchestratorAgent(BaseAgent):
             return
 
         # Wire up clients
-        from mcp_servers.postgres.server import increment_daily_usage
-
-        class _PostgresClient:
-            async def increment_daily_usage(self, requesting_user: str) -> dict:
-                return await increment_daily_usage(requesting_user)
-
-            async def get_user_role(self, user_id: str) -> dict:
-                return {}
-
         provisioning_url = os.environ.get(
             "PROVISIONING_AGENT_URL", "http://provisioning-agent:8002"
         )
         enquiry_url = os.environ.get("ENQUIRY_AGENT_URL", "http://enquiry-agent:8003")
 
-        class _A2AClient:
-            def __init__(self, url: str) -> None:
-                self._url = url
-
-            async def submit(self, **kwargs: Any) -> dict:
-                return await _call_sub_agent(
-                    self._url,
-                    {
-                        "id": str(uuid.uuid4()),
-                        "message": {
-                            "role": "user",
-                            "parts": [{"type": "data", "data": kwargs}],
-                        },
-                    },
-                )
-
         # Set correlation context
-        ctx_corr = new_correlation_context()
+        ctx_corr = CorrelationContext(
+            correlation_id=inp.correlation_id,
+            request_id=inp.request_id,
+        )
         set_correlation_context(ctx_corr)
 
         output = await route(
-            inp=inp,
-            postgres=_PostgresClient(),
+            input=inp,
+            postgres=_DefaultPostgresClient(),
             provisioning_agent=_A2AClient(provisioning_url),
             enquiry_agent=_A2AClient(enquiry_url),
         )

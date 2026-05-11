@@ -52,6 +52,8 @@ from contracts.shared.correlation import (
 )
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
+from mcp_servers.postgres import server as _pg_server
+from mcp_servers.pubsub import server as _ps_server
 
 configure_logging(service_name="provisioning-agent")
 logger = get_logger("provisioning-agent")
@@ -133,7 +135,7 @@ async def handle_task(
                 job_id=uuid.UUID(existing["id"]),
                 confirmation_summary=existing.get("confirmation_summary", ""),
                 idempotency_key=idempotency_key,
-                existing_job=None,
+                existing_job=existing,
                 expires_at=datetime.now(timezone.utc) + timedelta(minutes=20),
             )
 
@@ -227,6 +229,28 @@ async def handle_task(
     )
 
 
+class _DefaultPostgresClient:
+    async def get_provisioning_job_by_idempotency_key(self, idempotency_key: str) -> dict:
+        return await _pg_server.get_provisioning_job_by_idempotency_key(idempotency_key)  # type: ignore[arg-type]
+
+    async def create_provisioning_job(self, job_data: dict) -> dict:
+        return await _pg_server.create_provisioning_job(job_data)  # type: ignore[arg-type]
+
+    async def update_job_status(self, job_id: str, status: str) -> dict:
+        return await _pg_server.update_job_status(job_id=job_id, status=status)  # type: ignore[arg-type]
+
+    async def update_request_status(self, infra_request_id: str, status: str, confirmed_at: str | None) -> dict:
+        return await _pg_server.update_request_status(infra_request_id=infra_request_id, status=status, confirmed_at=confirmed_at)  # type: ignore[arg-type]
+
+    async def create_audit_event(self, event_data: dict) -> dict:
+        return await _pg_server.create_audit_event(event_data)  # type: ignore[arg-type]
+
+
+class _DefaultPubSubClient:
+    async def publish_provisioning_request(self, event: dict) -> dict:
+        return _ps_server.publish_provisioning_request(event)  # type: ignore[arg-type]
+
+
 # ─── ADK Agent ──────────────────────────────────────────────────────────────
 
 class ProvisioningAgent(BaseAgent):
@@ -263,35 +287,11 @@ class ProvisioningAgent(BaseAgent):
         ctx_corr = new_correlation_context()
         set_correlation_context(ctx_corr)
 
-        # Wire up MCP clients
-        from mcp_servers.postgres import server as pg_server
-        from mcp_servers.pubsub import server as ps_server
-
-        class _PostgresClient:
-            async def get_provisioning_job_by_idempotency_key(self, idempotency_key: str) -> dict:
-                return await pg_server.get_provisioning_job_by_idempotency_key(idempotency_key)  # type: ignore[arg-type]
-
-            async def create_provisioning_job(self, job_data: dict) -> dict:
-                return await pg_server.create_provisioning_job(job_data)  # type: ignore[arg-type]
-
-            async def update_job_status(self, job_id: str, status: str) -> dict:
-                return await pg_server.update_job_status(job_id=job_id, status=status)  # type: ignore[arg-type]
-
-            async def update_request_status(self, infra_request_id: str, status: str, confirmed_at: str | None) -> dict:
-                return await pg_server.update_request_status(infra_request_id=infra_request_id, status=status, confirmed_at=confirmed_at)  # type: ignore[arg-type]
-
-            async def create_audit_event(self, event_data: dict) -> dict:
-                return await pg_server.create_audit_event(event_data)  # type: ignore[arg-type]
-
-        class _PubSubClient:
-            async def publish_provisioning_request(self, event: dict) -> dict:
-                return ps_server.publish_provisioning_request(event)  # type: ignore[arg-type]
-
         try:
             output = await handle_task(
                 inp=inp,
-                postgres=_PostgresClient(),
-                pubsub=_PubSubClient(),
+                postgres=_DefaultPostgresClient(),
+                pubsub=_DefaultPubSubClient(),
             )
         except ValueError as exc:
             error_out = {"error": str(exc)}

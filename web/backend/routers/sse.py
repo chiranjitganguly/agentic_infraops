@@ -1,7 +1,7 @@
 """T054 — SSE router: GET /jobs/{job_id}/stream
 
-Wraps the job_status_stream() business logic from web/backend/routers/sse.py.
-Uses asyncpg LISTEN/NOTIFY on infraops_job_status channel.
+Streams provisioning job status changes via asyncpg LISTEN/NOTIFY.
+Uses sse_starlette EventSourceResponse.
 Sends event: done and closes on terminal status.
 """
 from __future__ import annotations
@@ -15,9 +15,9 @@ import asyncpg
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
-from web.backend.routers.sse import job_status_stream
-
 router = APIRouter(tags=["jobs"])
+
+_TERMINAL_STATUSES = frozenset({"completed", "succeeded", "failed", "rolled_back", "cancelled"})
 
 
 class _AsyncpgListener:
@@ -41,6 +41,26 @@ class _AsyncpgListener:
         finally:
             await conn.remove_listener(channel, _on_notify)
             await conn.close()
+
+
+async def job_status_stream(
+    job_id: uuid.UUID,
+    db_listener: _AsyncpgListener,
+) -> AsyncIterator[dict[str, str]]:
+    """Yield SSE events for a provisioning job until it reaches a terminal state.
+
+    Filters LISTEN/NOTIFY payloads to only those matching job_id.
+    Emits event:status for each matching update and event:done (empty data) on terminal.
+    """
+    async for payload in db_listener.listen("infraops_job_status"):
+        data = json.loads(payload)
+        if data.get("job_id") != str(job_id):
+            continue
+        status = data.get("status", "")
+        yield {"event": "status", "data": json.dumps({"job_id": str(job_id), "status": status})}
+        if status in _TERMINAL_STATUSES:
+            yield {"event": "done", "data": ""}
+            return
 
 
 @router.get("/jobs/{job_id}/stream")

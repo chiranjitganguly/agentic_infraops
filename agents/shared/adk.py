@@ -44,7 +44,7 @@ def build_status(states: Iterable[str]) -> dict[str, object]:
 
 
 def build_artifact(payload: dict[str, object]) -> dict[str, object]:
-    return {"parts": [{"type": "application/json", "data": payload}]}
+    return {"parts": [{"type": "data", "data": payload}]}
 
 
 def build_task_response(

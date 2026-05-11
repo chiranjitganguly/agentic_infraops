@@ -5,11 +5,13 @@ from uuid import UUID
 
 from contracts.schemas.user_role import DeveloperGuardrails, UserRoleType
 from agents.orchestrator.agent import (
+    ClassifierClient,
     OrchestratorInput,
     OrchestratorOutput,
     Outcome,
     route,
 )
+from skills.intent_classification.classifier import ClassificationResult
 
 
 CORRELATION_ID = UUID("aaaaaaaa-0000-0000-0000-000000000001")
@@ -33,19 +35,26 @@ def make_input(raw_input="Create a VM in us-central1", user_role=UserRoleType.de
     )
 
 
-def make_classifier(intent="provision", confidence=0.95, region="us-central1",
-                    machine_type="e2-standard-4", resource_name="my-vm",
-                    resource_type="compute_instance"):
-    client = MagicMock()
-    client.classify = AsyncMock(return_value=MagicMock(
-        intent=intent,
-        confidence=confidence,
-        resource_type=resource_type,
-        resource_name=resource_name,
-        region=region,
-        machine_type=machine_type,
-    ))
-    return client
+class FakeClassifier(ClassifierClient):
+    def __init__(self, *, intent="provision", confidence=0.95, region="us-central1",
+                 machine_type="e2-standard-4", resource_name="my-vm",
+                 resource_type="compute_instance") -> None:
+        self._intent = intent
+        self._confidence = confidence
+        self._region = region
+        self._machine_type = machine_type
+        self._resource_name = resource_name
+        self._resource_type = resource_type
+
+    async def classify(self, raw_input: str, channel: str):  # type: ignore[override]
+        return ClassificationResult(
+            intent=self._intent,
+            confidence=self._confidence,
+            resource_type=self._resource_type,
+            resource_name=self._resource_name,
+            region=self._region,
+            machine_type=self._machine_type,
+        )
 
 
 def make_postgres(limit_reached=False):
@@ -71,7 +80,7 @@ def make_enquiry_agent():
 # B1: confidence < 0.7 → clarification_needed, nothing downstream called
 @pytest.mark.anyio
 async def test_low_confidence_returns_clarification_needed():
-    classifier = make_classifier(confidence=0.5)
+    classifier = FakeClassifier(confidence=0.5)
     pg = make_postgres()
     provisioning = make_provisioning_agent()
     enquiry = make_enquiry_agent()
@@ -95,7 +104,7 @@ async def test_low_confidence_returns_clarification_needed():
 # B2: provision + developer + allowed params + under limit → routed, agent + postgres called
 @pytest.mark.anyio
 async def test_provision_intent_routes_to_provisioning_agent():
-    classifier = make_classifier(
+    classifier = FakeClassifier(
         intent="provision", confidence=0.95,
         region="us-central1", machine_type="e2-standard-4",
     )
@@ -122,7 +131,7 @@ async def test_provision_intent_routes_to_provisioning_agent():
 # B3: guardrail violation → guardrail_violation outcome, postgres not incremented
 @pytest.mark.anyio
 async def test_guardrail_violation_blocks_before_incrementing_usage():
-    classifier = make_classifier(
+    classifier = FakeClassifier(
         intent="provision", confidence=0.92,
         region="asia-southeast1",       # outside allowed regions
         machine_type="n2-standard-96",  # outside allowed machine types
@@ -141,8 +150,8 @@ async def test_guardrail_violation_blocks_before_incrementing_usage():
     )
 
     assert result.outcome == Outcome.guardrail_violation
-    assert len(result.violations) == 2
-    violated_fields = {v.field for v in result.violations}
+    assert result.violations is not None
+    violated_fields = {v["field"] for v in result.violations}
     assert violated_fields == {"region", "machine_type"}
     pg.increment_daily_usage.assert_not_called()
     provisioning.submit.assert_not_called()
@@ -151,7 +160,7 @@ async def test_guardrail_violation_blocks_before_incrementing_usage():
 # B4: daily limit reached → rate_limited, provisioning agent not called
 @pytest.mark.anyio
 async def test_daily_limit_reached_returns_rate_limited():
-    classifier = make_classifier(
+    classifier = FakeClassifier(
         intent="provision", confidence=0.95,
         region="us-central1", machine_type="e2-standard-4",
     )
@@ -176,7 +185,7 @@ async def test_daily_limit_reached_returns_rate_limited():
 # B5: enquiry intent → routed to enquiry agent, daily usage not incremented
 @pytest.mark.anyio
 async def test_enquiry_intent_routes_to_enquiry_agent_without_incrementing_usage():
-    classifier = make_classifier(intent="enquiry", confidence=0.91)
+    classifier = FakeClassifier(intent="enquiry", confidence=0.91)
     pg = make_postgres()
     provisioning = make_provisioning_agent()
     enquiry = make_enquiry_agent()

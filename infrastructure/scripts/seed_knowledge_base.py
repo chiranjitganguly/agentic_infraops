@@ -57,12 +57,12 @@ def chunk_markdown(text: str, source_doc: str, chunk_size: int = CHUNK_SIZE, ove
         }
 
 
-async def embed_text(text: str, litellm_url: str, master_key: str) -> list[float]:
+async def embed_text(text: str, litellm_url: str, master_key: str, embedding_model: str) -> list[float]:
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{litellm_url}/embeddings",
             headers={"Authorization": f"Bearer {master_key}"},
-            json={"model": "embedding", "input": text},
+            json={"model": embedding_model, "input": text},
             timeout=30.0,
         )
         response.raise_for_status()
@@ -73,6 +73,7 @@ async def seed(knowledge_dir: Path, recreate: bool = False) -> None:
     qdrant_url = os.environ.get("QDRANT_URL", "http://localhost:6333")
     litellm_url = os.environ.get("LITELLM_GATEWAY_URL", "http://localhost:4000")
     master_key = os.environ.get("LITELLM_MASTER_KEY", "")
+    embedding_model = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 
     client = AsyncQdrantClient(url=qdrant_url)
 
@@ -106,7 +107,7 @@ async def seed(knowledge_dir: Path, recreate: bool = False) -> None:
         print(f"Indexing {source_doc} → {len(chunks)} chunks")
         points: list[PointStruct] = []
         for chunk in chunks:
-            dense_vec = await embed_text(chunk["chunk_text"], litellm_url, master_key)
+            dense_vec = await embed_text(chunk["chunk_text"], litellm_url, master_key, embedding_model)
             points.append(
                 PointStruct(
                     id=chunk["id"],

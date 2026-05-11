@@ -166,7 +166,7 @@ async def classify(raw_input: str, channel: ChannelType | str) -> Classification
     """
     gateway_url = os.environ.get("LITELLM_GATEWAY_URL", "http://localhost:4000")
     master_key = os.environ.get("LITELLM_MASTER_KEY", "")
-    model = os.environ.get("LITELLM_DEFAULT_MODEL", "gemini/gemini-1.5-flash")
+    model = os.environ.get("INTENT_CLASSIFICATION_MODEL", "gpt-4o-2024-11-20")
 
     channel_hint = (
         "Note: this request came via email — it may be more formal in tone."

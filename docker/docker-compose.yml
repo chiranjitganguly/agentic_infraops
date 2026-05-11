@@ -86,8 +86,8 @@ services:
     ports:
       - "4000:4000"
     environment:
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
@@ -206,6 +206,7 @@ services:
       QDRANT_COLLECTION: infraops_knowledge_base
       LITELLM_GATEWAY_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
     depends_on:
       qdrant:
         condition: service_healthy
@@ -253,6 +254,7 @@ services:
       PORT: "8001"
       LITELLM_GATEWAY_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      INTENT_CLASSIFICATION_MODEL: ${INTENT_CLASSIFICATION_MODEL}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       PROVISIONING_AGENT_URL: http://provisioning-agent:8002
       ENQUIRY_AGENT_URL: http://enquiry-agent:8003
@@ -300,6 +302,7 @@ services:
       PORT: "8004"
       LITELLM_GATEWAY_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      FAQ_GENERATION_MODEL: ${FAQ_GENERATION_MODEL}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
       - litellm

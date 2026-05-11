@@ -61,7 +61,7 @@ class ProvisioningConfirmationOutput(BaseModel):
     status: Literal["awaiting_confirmation"] = "awaiting_confirmation"
     confirmation_summary: str
     idempotency_key: str
-    existing_job: ProvisioningJob | None = None
+    existing_job: dict[str, Any] | None = None
     expires_at: datetime
 
 

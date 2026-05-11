@@ -7,6 +7,8 @@ Manages asyncpg connection pool lifecycle.
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 import asyncpg
 from fastapi import FastAPI
@@ -19,7 +21,27 @@ from web.backend.routers import auth, jobs, requests, sse
 configure_logging(service_name="infraops-web")
 logger = get_logger("infraops-web")
 
-app = FastAPI(title="infraops-web", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    from mcp_servers.postgres import server as pg
+
+    pool = await asyncpg.create_pool(
+        os.environ["DATABASE_URL"],
+        min_size=2,
+        max_size=10,
+    )
+    pg._pool = pool  # type: ignore[attr-defined]
+    logger.info("db_pool_started")
+
+    yield
+
+    if pg._pool is not None:  # type: ignore[attr-defined]
+        await pg._pool.close()  # type: ignore[attr-defined]
+        logger.info("db_pool_closed")
+
+
+app = FastAPI(title="infraops-web", version="1.0.0", lifespan=lifespan)
 
 _cors_origins = [
     o.strip()
@@ -40,28 +62,6 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(requests.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(sse.router, prefix="/api/v1")
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    from mcp_servers.postgres import server as pg
-
-    pool = await asyncpg.create_pool(
-        os.environ["DATABASE_URL"],
-        min_size=2,
-        max_size=10,
-    )
-    pg._pool = pool  # type: ignore[attr-defined]
-    logger.info("db_pool_started")
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    from mcp_servers.postgres import server as pg
-
-    if pg._pool is not None:  # type: ignore[attr-defined]
-        await pg._pool.close()  # type: ignore[attr-defined]
-        logger.info("db_pool_closed")
 
 
 @app.get("/health")

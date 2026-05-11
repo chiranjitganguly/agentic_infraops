@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import random
+import uuid
 from datetime import datetime, timezone
 
 from airflow import DAG
@@ -82,6 +83,7 @@ def task_update_in_progress(**context: object) -> None:
 def task_dry_run_validate(**context: object) -> None:
     import asyncio
 
+    from contracts.agents.provisioning import VMParameters
     from skills.gcp_compute.provisioner import create_vm
 
     data = context["ti"].xcom_pull(task_ids="update_in_progress", key="job_data")
@@ -103,25 +105,28 @@ def task_dry_run_validate(**context: object) -> None:
                 return gcp_server.delete_vm(**kwargs)  # type: ignore[arg-type]
 
         class _PgClient:
-            async def update_job_status(self, **kwargs: object) -> dict:
-                return await pg_server.update_job_status(**kwargs)  # type: ignore[arg-type]
+            async def update_job_status(self, job_id: uuid.UUID, rollback_resources: list) -> None:
+                await pg_server.update_job_status(job_id=str(job_id), rollback_resources=rollback_resources)  # type: ignore[arg-type]
 
-        result = await create_vm(
-            job_id=data["job_id"],
-            project_id=_PROJECT_ID,
-            zone=data.get("zone") or f"{data['region']}-a",
-            instance_name=data["resource_name"],
+        vm_params = VMParameters(
             machine_type=params.get("machine_type", "e2-standard-4"),
             disk_size_gb=int(params.get("disk_size_gb", 50)),
             image_family=params.get("image_family", "debian-12"),
             image_project=params.get("image_project", "debian-cloud"),
             network=params.get("network", "default"),
             tags=params.get("tags", []),
-            requesting_user=data["requesting_user"],
-            rollback_resources=[],
+        )
+
+        result = await create_vm(
+            params=vm_params,
+            region=data["region"],
+            resource_name=data["resource_name"],
+            zone=data.get("zone") or f"{data['region']}-a",
+            project_id=_PROJECT_ID,
+            job_id=uuid.UUID(data["job_id"]),
             dry_run=True,
             gcp_client=_GcpClient(),  # type: ignore[arg-type]
-            postgres=_PgClient(),  # type: ignore[arg-type]
+            postgres_client=_PgClient(),  # type: ignore[arg-type]
         )
 
         if not result.success:
@@ -135,6 +140,7 @@ def task_dry_run_validate(**context: object) -> None:
 def task_provision_vm(**context: object) -> None:
     import asyncio
 
+    from contracts.agents.provisioning import VMParameters
     from skills.gcp_compute.provisioner import create_vm
 
     ti: TaskInstance = context["ti"]
@@ -144,9 +150,8 @@ def task_provision_vm(**context: object) -> None:
         data = json.loads(raw[0]["data"])
 
     params = data.get("parameters", {})
-    rollback_resources: list = []
 
-    async def _run() -> list:
+    async def _run() -> str | None:
         from mcp_servers.gcp_resource import server as gcp_server
         from mcp_servers.postgres import server as pg_server
 
@@ -158,36 +163,38 @@ def task_provision_vm(**context: object) -> None:
                 return gcp_server.delete_vm(**kwargs)  # type: ignore[arg-type]
 
         class _PgClient:
-            async def update_job_status(self, **kwargs: object) -> dict:
-                return await pg_server.update_job_status(**kwargs)  # type: ignore[arg-type]
+            async def update_job_status(self, job_id: uuid.UUID, rollback_resources: list) -> None:
+                await pg_server.update_job_status(job_id=str(job_id), rollback_resources=rollback_resources)  # type: ignore[arg-type]
 
-        result = await create_vm(
-            job_id=data["job_id"],
-            project_id=_PROJECT_ID,
-            zone=data.get("zone") or f"{data['region']}-a",
-            instance_name=data["resource_name"],
+        vm_params = VMParameters(
             machine_type=params.get("machine_type", "e2-standard-4"),
             disk_size_gb=int(params.get("disk_size_gb", 50)),
             image_family=params.get("image_family", "debian-12"),
             image_project=params.get("image_project", "debian-cloud"),
             network=params.get("network", "default"),
             tags=params.get("tags", []),
-            requesting_user=data["requesting_user"],
-            rollback_resources=rollback_resources,
+        )
+
+        result = await create_vm(
+            params=vm_params,
+            region=data["region"],
+            resource_name=data["resource_name"],
+            zone=data.get("zone") or f"{data['region']}-a",
+            project_id=_PROJECT_ID,
+            job_id=uuid.UUID(data["job_id"]),
             dry_run=False,
             gcp_client=_GcpClient(),  # type: ignore[arg-type]
-            postgres=_PgClient(),  # type: ignore[arg-type]
+            postgres_client=_PgClient(),  # type: ignore[arg-type]
         )
 
         if not result.success:
             raise RuntimeError(result.error_message or "VM provisioning failed")
 
-        return result.rollback_resources  # type: ignore[attr-defined]
+        return result.gcp_resource_id
 
-    resources = asyncio.run(_run())
-    ti.xcom_push(key="rollback_resources", value=resources)
-    ti.xcom_push(key="gcp_resource_id", value=resources[0].get("gcp_resource_id") if resources else None)
-    log.info("provision_vm_done job_id=%s resources=%s", data["job_id"], resources)
+    gcp_resource_id = asyncio.run(_run())
+    ti.xcom_push(key="gcp_resource_id", value=gcp_resource_id)
+    log.info("provision_vm_done job_id=%s gcp_resource_id=%s", data["job_id"], gcp_resource_id)
 
 
 def task_register_backstage(**context: object) -> None:
@@ -240,13 +247,11 @@ def task_update_succeeded(**context: object) -> None:
         data = json.loads(raw[0]["data"])
 
     gcp_resource_id = ti.xcom_pull(task_ids="provision_vm", key="gcp_resource_id")
-    rollback_resources = ti.xcom_pull(task_ids="provision_vm", key="rollback_resources") or []
 
     _update_job_status_sync(
         job_id=data["job_id"],
         status="succeeded",
         gcp_resource_id=gcp_resource_id,
-        rollback_resources=rollback_resources,
     )
     log.info("job_succeeded job_id=%s", data["job_id"])
 

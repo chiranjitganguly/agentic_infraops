@@ -8,6 +8,7 @@ Wraps the `circuitbreaker` library:
 """
 from __future__ import annotations
 
+import asyncio
 import functools
 import logging
 from collections.abc import Callable
@@ -90,7 +91,6 @@ def gcp_circuit_breaker(
                     f"Circuit breaker for '{tool}' ({resource_type}) is open — GCP API call blocked"
                 ) from exc
 
-        import asyncio
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore[return-value]
         return sync_wrapper  # type: ignore[return-value]
