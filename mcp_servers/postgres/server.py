@@ -152,7 +152,13 @@ async def update_job_status(
 
 @mcp.tool()
 async def cancel_job(job_id: str, requesting_user: str) -> dict[str, Any]:
-    """Cancel a job — only allowed from awaiting_confirmation or queued states."""
+    """Atomically set job status to cancelled.
+
+    Data integrity guard: the UPDATE only matches rows in awaiting_confirmation or queued
+    and owned by requesting_user — it will not mutate a succeeded or in_progress job.
+    Returns the updated row, or empty dict if the job was not in a cancellable state
+    (caller is responsible for the user-facing error message).
+    """
     pool = await _get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -325,9 +331,12 @@ async def get_daily_usage_count(requesting_user: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def increment_daily_usage(requesting_user: str) -> dict[str, Any]:
-    """Count today's jobs for user and return count + whether limit is reached."""
-    daily_limit = int(os.environ.get("DEVELOPER_DAILY_LIMIT", "10"))
+async def increment_daily_usage(requesting_user: str, daily_limit: int) -> dict[str, Any]:
+    """Count today's provisioning jobs for requesting_user and compare to the caller-supplied limit.
+
+    The limit is a policy parameter — callers own it; this function is a pure data adapter.
+    Returns {"count": int, "limit_reached": bool}.
+    """
     pool = await _get_pool()
     async with pool.acquire() as conn:
         count: int = await conn.fetchval(

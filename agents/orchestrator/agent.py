@@ -60,7 +60,7 @@ logger = get_logger("orchestrator-agent")
 
 
 class PostgresClient(Protocol):
-    async def increment_daily_usage(self, requesting_user: str) -> dict: ...
+    async def increment_daily_usage(self, requesting_user: str, daily_limit: int) -> dict: ...
     async def get_user_role(self, user_id: str) -> dict: ...
 
 
@@ -212,7 +212,10 @@ async def route(
 
     # Daily rate limit check (developers only)
     if classification.intent == "provision" and input.user_role == UserRoleType.developer:
-        usage = await postgres.increment_daily_usage(requesting_user=input.requesting_user)
+        usage = await postgres.increment_daily_usage(
+            requesting_user=input.requesting_user,
+            daily_limit=guardrails.daily_provisioning_limit,
+        )
         if usage.get("limit_reached"):
             return OrchestratorOutput(
                 correlation_id=input.correlation_id,
@@ -258,8 +261,8 @@ class _DefaultClassifier(ClassifierClient):
 
 
 class _DefaultPostgresClient:
-    async def increment_daily_usage(self, requesting_user: str) -> dict:
-        return await _pg_increment_daily_usage(requesting_user)
+    async def increment_daily_usage(self, requesting_user: str, daily_limit: int) -> dict:
+        return await _pg_increment_daily_usage(requesting_user, daily_limit)
 
     async def get_user_role(self, user_id: str) -> dict:
         return {}

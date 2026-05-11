@@ -25,6 +25,11 @@ class CorrelationContext:
             request_id=uuid.uuid4(),
         )
 
+    @classmethod
+    def from_ids(cls, correlation_id: uuid.UUID, request_id: uuid.UUID) -> "CorrelationContext":
+        """Propagate existing IDs rather than generating new ones (use when forwarding a request)."""
+        return cls(correlation_id=correlation_id, request_id=request_id)
+
 
 _context_var: ContextVar[CorrelationContext] = ContextVar(
     "correlation_context",

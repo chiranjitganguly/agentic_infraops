@@ -47,7 +47,7 @@ from contracts.agents.provisioning import (
 )
 from contracts.events.pubsub_events import ProvisioningRequestEvent
 from contracts.shared.correlation import (
-    new_correlation_context,
+    CorrelationContext,
     set_correlation_context,
 )
 from contracts.shared.logging import configure_logging, get_logger
@@ -283,8 +283,8 @@ class ProvisioningAgent(BaseAgent):
             )
             return
 
-        # Set correlation context
-        ctx_corr = new_correlation_context()
+        # Propagate the correlation IDs that arrived on the input — do not generate fresh ones.
+        ctx_corr = CorrelationContext.from_ids(inp.correlation_id, inp.request_id)
         set_correlation_context(ctx_corr)
 
         try:

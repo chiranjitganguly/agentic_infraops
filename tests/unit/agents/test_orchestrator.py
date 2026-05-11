@@ -123,7 +123,7 @@ async def test_provision_intent_routes_to_provisioning_agent():
 
     assert result.outcome == Outcome.routed
     assert result.intent == "provision"
-    pg.increment_daily_usage.assert_called_once_with(requesting_user="dev@example.com")
+    pg.increment_daily_usage.assert_called_once_with(requesting_user="dev@example.com", daily_limit=10)
     provisioning.submit.assert_called_once()
     enquiry.submit.assert_not_called()
 
