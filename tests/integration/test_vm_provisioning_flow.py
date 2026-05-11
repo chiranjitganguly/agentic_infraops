@@ -20,16 +20,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agentic_infraops.agents.provisioning.agent import handle_task
-from agentic_infraops.contracts.agents.provisioning import (
+from agents.provisioning.agent import handle_task
+from contracts.agents.provisioning import (
     ProvisioningConfirmationOutput,
     ProvisioningInput,
     ProvisioningQueuedOutput,
     VMParameters,
 )
-from agentic_infraops.contracts.schemas.provisioning_job import ResourceType
-from agentic_infraops.contracts.schemas.user_role import UserRoleType
-from agentic_infraops.skills.gcp_compute.provisioner import ProvisionResult, create_vm
+from contracts.schemas.provisioning_job import ResourceType
+from contracts.schemas.user_role import UserRoleType
+from skills.gcp_compute.provisioner import ProvisionResult, create_vm
 
 pytestmark = pytest.mark.integration
 

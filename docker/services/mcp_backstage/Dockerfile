@@ -6,12 +6,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY agentic_infraops/mcp_servers/backstage/pyproject.toml ./
+COPY mcp_servers/backstage/pyproject.toml ./
 RUN pip install --no-cache-dir hatchling && \
     pip install --no-cache-dir -e .
 
-COPY agentic_infraops/mcp_servers/backstage/ ./mcp_servers/backstage/
-COPY agentic_infraops/contracts/ ./contracts/
+COPY mcp_servers/backstage/ ./mcp_servers/backstage/
+COPY contracts/ ./contracts/
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 

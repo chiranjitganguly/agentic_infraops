@@ -10,13 +10,13 @@ import uuid
 import pytest
 from pydantic import ValidationError
 
-from agentic_infraops.contracts.agents.orchestrator import (
+from contracts.agents.orchestrator import (
     Outcome,
     OrchestratorInput,
     OrchestratorOutput,
 )
-from agentic_infraops.contracts.schemas.infra_request import ChannelType, IntentType
-from agentic_infraops.contracts.schemas.user_role import UserRoleType
+from contracts.schemas.infra_request import ChannelType, IntentType
+from contracts.schemas.user_role import UserRoleType
 
 
 def _valid_input(**overrides) -> dict:  # type: ignore[no-untyped-def]

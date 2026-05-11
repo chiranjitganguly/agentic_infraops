@@ -6,12 +6,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY agentic_infraops/agents/provisioning/pyproject.toml ./
+COPY agents/provisioning/pyproject.toml ./
 RUN pip install --no-cache-dir hatchling && \
     pip install --no-cache-dir -e .
 
-COPY agentic_infraops/agents/provisioning/ ./agents/provisioning/
-COPY agentic_infraops/contracts/ ./contracts/
+COPY agents/provisioning/ ./agents/provisioning/
+COPY contracts/ ./contracts/
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 

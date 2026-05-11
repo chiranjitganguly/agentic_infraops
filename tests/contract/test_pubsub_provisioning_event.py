@@ -11,12 +11,12 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from agentic_infraops.contracts.events.pubsub_events import (
+from contracts.events.pubsub_events import (
     ProvisioningRequestEvent,
     ProvisioningStatusEvent,
 )
-from agentic_infraops.contracts.schemas.provisioning_job import JobStatus, ResourceType
-from agentic_infraops.contracts.schemas.user_role import UserRoleType
+from contracts.schemas.provisioning_job import JobStatus, ResourceType
+from contracts.schemas.user_role import UserRoleType
 
 
 def _request_event_payload() -> dict:

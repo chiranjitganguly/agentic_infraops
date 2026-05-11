@@ -11,17 +11,17 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
-from agentic_infraops.contracts.agents.provisioning import (
+from contracts.agents.provisioning import (
     ErrorCode,
     ProvisioningConfirmationOutput,
     ProvisioningErrorOutput,
     ProvisioningQueuedOutput,
 )
-from agentic_infraops.contracts.schemas.infra_request import (
+from contracts.schemas.infra_request import (
     ChannelType,
     InfraRequestCreate,
 )
-from agentic_infraops.contracts.schemas.user_role import UserRoleType
+from contracts.schemas.user_role import UserRoleType
 
 
 def _confirmation_payload() -> dict:

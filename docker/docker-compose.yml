@@ -17,7 +17,7 @@ x-airflow-common: &airflow-common
     LITELLM_GATEWAY_URL: http://litellm:4000
     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
   volumes:
-    - ./agentic_infraops/workflows/dags:/opt/airflow/dags
+    - ../workflows/dags:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
   depends_on:
     postgres:
@@ -81,7 +81,7 @@ services:
 
   litellm:
     build:
-      context: ./docker/services/litellm
+      context: ./services/litellm
       dockerfile: Dockerfile
     ports:
       - "4000:4000"
@@ -91,7 +91,7 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
-      - ./docker/services/litellm/litellm_config.yaml:/app/config.yaml:ro
+      - ./services/litellm/litellm_config.yaml:/app/config.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,8 +106,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
       - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -124,7 +124,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     depends_on:
       - prometheus
 
@@ -169,8 +169,8 @@ services:
   # ─── MCP Servers ─────────────────────────────────────────────────────────────
   mcp-postgres:
     build:
-      context: ./docker/services/mcp_postgres
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_postgres/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
@@ -179,8 +179,8 @@ services:
 
   mcp-pubsub:
     build:
-      context: ./docker/services/mcp_pubsub
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_pubsub/Dockerfile
     environment:
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
@@ -189,8 +189,8 @@ services:
 
   mcp-gcp-resource:
     build:
-      context: ./docker/services/mcp_gcp_resource
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_gcp_resource/Dockerfile
     environment:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-sa.json
@@ -199,8 +199,8 @@ services:
 
   mcp-knowledge-base:
     build:
-      context: ./docker/services/mcp_knowledge_base
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_knowledge_base/Dockerfile
     environment:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: infraops_knowledge_base
@@ -212,16 +212,16 @@ services:
 
   mcp-backstage:
     build:
-      context: ./docker/services/mcp_backstage
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_backstage/Dockerfile
     environment:
       BACKSTAGE_API_URL: ${BACKSTAGE_API_URL}
       BACKSTAGE_API_TOKEN: ${BACKSTAGE_API_TOKEN}
 
   mcp-gmail:
     build:
-      context: ./docker/services/mcp_gmail
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_gmail/Dockerfile
     environment:
       GMAIL_CREDENTIALS_PATH: /secrets/gmail-creds.json
       GMAIL_TOKEN_PATH: /secrets/gmail-token.json
@@ -232,8 +232,8 @@ services:
 
   mcp-airflow:
     build:
-      context: ./docker/services/mcp_airflow
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/mcp_airflow/Dockerfile
     environment:
       AIRFLOW_API_URL: http://airflow-webserver:8080/api/v1
       AIRFLOW_USERNAME: ${AIRFLOW_ADMIN_EMAIL}
@@ -245,8 +245,8 @@ services:
   # ─── Agents ──────────────────────────────────────────────────────────────────
   orchestrator-agent:
     build:
-      context: ./docker/services/orchestrator
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/orchestrator/Dockerfile
     ports:
       - "8001:8001"
     environment:
@@ -263,8 +263,8 @@ services:
 
   provisioning-agent:
     build:
-      context: ./docker/services/provisioning
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/provisioning/Dockerfile
     ports:
       - "8002:8002"
     environment:
@@ -278,8 +278,8 @@ services:
 
   enquiry-agent:
     build:
-      context: ./docker/services/enquiry
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/enquiry/Dockerfile
     ports:
       - "8003:8003"
     environment:
@@ -292,8 +292,8 @@ services:
 
   faq-agent:
     build:
-      context: ./docker/services/faq
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/faq/Dockerfile
     ports:
       - "8004:8004"
     environment:
@@ -308,8 +308,8 @@ services:
 
   web-backend:
     build:
-      context: ./docker/services/web_backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/web_backend/Dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -329,14 +329,14 @@ services:
     ports:
       - "5173:80"
     volumes:
-      - ./agentic_infraops/web/frontend:/usr/share/nginx/html:ro
+      - ../web/frontend:/usr/share/nginx/html:ro
     depends_on:
       - web-backend
 
   gmail-poller:
     build:
-      context: ./docker/services/gmail_poller
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/gmail_poller/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       ORCHESTRATOR_AGENT_URL: http://orchestrator-agent:8001
@@ -348,8 +348,8 @@ services:
 
   notification-service:
     build:
-      context: ./docker/services/notification_service
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/services/notification_service/Dockerfile
     environment:
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
