@@ -67,9 +67,9 @@ export PUBSUB_EMULATOR_HOST=localhost:8085
 
 ---
 
-## 4. Google ADK A2A Protocol
+## 4. Google Agent Development Kit A2A Protocol
 
-**Decision**: Google ADK native A2A protocol with agent cards and task lifecycle API
+**Decision**: Google Agent Development Kit native A2A protocol with agent cards and task lifecycle API
 
 **Pattern**:
 - Each agent is an HTTP service exposing a `/.well-known/agent.json` agent card endpoint

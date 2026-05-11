@@ -49,7 +49,7 @@ An **InfraRequest** represents exactly one user request for exactly one operatio
 
 Compound requests (e.g. "create a VM and a bucket") are rejected at normalisation time with a message asking the user to submit them as separate requests.
 
-**Synonym to avoid**: "user request" (too generic), "task" (overloaded with ADK task meaning)
+**Synonym to avoid**: "user request" (too generic), "task" (overloaded with Google Agent Development Kit task meaning)
 
 ---
 

@@ -5,7 +5,7 @@
 
 ## Context
 
-The platform uses Google ADK agents for orchestration and MCP Servers as adapters for external systems (GCP APIs, PostgreSQL, Qdrant, PubSub). A question arose about where business logic lives: parameter validation, idempotency enforcement, dry-run logic, and rollback procedures.
+The platform uses Google Agent Development Kit agents for orchestration and MCP Servers as adapters for external systems (GCP APIs, PostgreSQL, Qdrant, PubSub). A question arose about where business logic lives: parameter validation, idempotency enforcement, dry-run logic, and rollback procedures.
 
 Two simpler alternatives exist:
 - **Collapse into agents**: agents contain all business logic and call MCP servers directly
