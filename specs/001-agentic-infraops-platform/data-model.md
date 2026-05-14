@@ -136,11 +136,66 @@ A point-in-time snapshot of a GCP resource's status. Not persisted to PostgreSQL
 | `project_id` | TEXT | GCP project ID |
 | `zone` | TEXT\|NULL | Zone (compute instances only) |
 | `region` | TEXT\|NULL | Region (storage buckets, VPC networks) |
-| `status` | TEXT | GCP-returned status string (e.g., `RUNNING`, `TERMINATED`, `ACTIVE`) |
-| `metadata` | DICT | Resource-type-specific metadata (machine type, storage class, etc.) |
+| `gcp_status` | TEXT | GCP-returned status string (e.g., `RUNNING`, `TERMINATED`, `ACTIVE`) |
+| `metadata` | UNION | Typed metadata object — one of `VMMetadata`, `BucketMetadata`, `VPCMetadata` below |
+| `human_readable_summary` | TEXT | Pre-formatted single-paragraph summary for display |
 | `queried_at` | DATETIME | Timestamp of the GCP API call |
 | `requested_by` | TEXT | Requesting user |
 | `correlation_id` | UUID | Propagated from InfraRequest |
+
+### Typed Metadata Models
+
+#### `VMMetadata` (when `resource_type = compute_instance`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `machine_type` | TEXT | e.g. `e2-standard-4` |
+| `zone` | TEXT | e.g. `us-central1-a` |
+| `network` | TEXT | Full GCP network resource URL |
+| `subnetwork` | TEXT\|NULL | Full GCP subnetwork resource URL |
+| `internal_ip` | TEXT\|NULL | Primary internal IP address |
+| `external_ip` | TEXT\|NULL | Ephemeral external IP, or null if none |
+| `disk_size_gb` | INT | Boot disk size in GB |
+| `creation_timestamp` | DATETIME | When the instance was created |
+| `labels` | DICT | GCP resource labels |
+
+#### `BucketMetadata` (when `resource_type = storage_bucket`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `storage_class` | TEXT | e.g. `STANDARD`, `NEARLINE` |
+| `location` | TEXT | e.g. `US-CENTRAL1` |
+| `location_type` | TEXT | `region`, `dual-region`, or `multi-region` |
+| `versioning_enabled` | BOOL | Whether object versioning is on |
+| `uniform_bucket_level_access` | BOOL | Whether uniform IAM access is enforced |
+| `public_access_prevention` | TEXT | `enforced` or `inherited` |
+| `creation_time` | DATETIME | When the bucket was created |
+| `labels` | DICT | GCP resource labels |
+
+#### `VPCMetadata` (when `resource_type = vpc_network`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `auto_create_subnetworks` | BOOL | Whether auto-mode subnets are enabled |
+| `routing_mode` | TEXT | `REGIONAL` or `GLOBAL` |
+| `subnet_count` | INT | Number of subnets in the network |
+| `subnets` | LIST[SubnetSummary] | Brief summary of each subnet |
+| `creation_timestamp` | DATETIME | When the network was created |
+
+**SubnetSummary**: `{name: TEXT, region: TEXT, cidr: TEXT, private_google_access: BOOL}`
+
+### ResourceSummary (list queries)
+
+Abbreviated form returned by `list_project_resources`. Never persisted.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `resource_name` | TEXT | GCP resource name |
+| `resource_type` | ENUM | `compute_instance`, `storage_bucket`, `vpc_network` |
+| `gcp_status` | TEXT | GCP status string |
+| `zone_or_region` | TEXT\|NULL | Zone (VMs) or region (buckets/VPCs) |
+| `key_metadata` | TEXT | Single most-relevant field: `machine_type`, `storage_class`, or `routing_mode` |
+| `creation_timestamp` | DATETIME\|NULL | When the resource was created |
 
 ---
 

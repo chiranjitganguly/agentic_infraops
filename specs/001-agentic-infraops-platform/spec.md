@@ -99,7 +99,8 @@ A user asks a best-practice or guidance question (e.g., "What is the best practi
 - **FR-009**: The system MUST execute provisioning workflows idempotently — submitting the same request twice MUST NOT create duplicate resources.
 - **FR-010**: The system MUST retry failed provisioning steps according to a defined retry policy before reporting failure.
 - **FR-011**: The system MUST query live GCP resource status in response to infrastructure enquiry requests.
-- **FR-012**: The system MUST return resource status in human-readable format, not raw API responses.
+- **FR-011a**: The system MUST support both single-resource lookup (by name) and project-wide resource listing (by type) for enquiry requests — e.g., "status of vm-123" and "list all my VMs".
+- **FR-012**: The system MUST return resource status both as a human-readable summary AND as structured metadata fields (typed per resource type, GCP status string, query timestamp) so callers can consume the response programmatically.
 - **FR-013**: The system MUST retrieve answers to best-practice questions from a curated knowledge base of infrastructure documentation.
 - **FR-014**: The system MUST cite sources when returning FAQ answers.
 - **FR-015**: The system MUST publish status events (provisioning pending, in_progress, retrying, succeeded, failed, cancelled) to notify users of workflow outcomes.

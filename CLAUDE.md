@@ -44,16 +44,16 @@ mypy agentic_infraops --ignore-missing-imports      # type check
 
 ```bash
 # Start everything
-docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml --env-file .env up -d
 
 # View logs for a service
-docker compose -f docker/docker-compose.yml logs -f orchestrator-agent
+docker compose -f docker/docker-compose.yml --env-file .env logs -f orchestrator-agent
 
 # Rebuild and restart a single service after code change
-docker compose -f docker/docker-compose.yml up -d --no-deps --build orchestrator-agent
+docker compose -f docker/docker-compose.yml --env-file .env up -d --no-deps --build orchestrator-agent
 
 # Stop and reset all state
-docker compose -f docker/docker-compose.yml down -v
+docker compose -f docker/docker-compose.yml --env-file .env down -v
 ```
 
 ### Setup Scripts

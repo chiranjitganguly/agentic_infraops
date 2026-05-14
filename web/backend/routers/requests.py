@@ -144,6 +144,28 @@ async def submit_request(body: SubmitRequestBody, request: Request) -> JSONRespo
                     },
                 )
 
+        if intent == "enquiry":
+            query_type = sub_result.get("query_type", "single")
+            base = {
+                "infra_request_id": str(infra_request_id),
+                "intent": intent,
+                "query_type": query_type,
+                "status": "answered",
+                "answer": sub_result.get("human_readable_summary") or sub_result.get("answer"),
+                "queried_at": sub_result.get("queried_at"),
+                "correlation_id": str(ctx.correlation_id),
+            }
+            if query_type == "list":
+                base["resource_type"] = sub_result.get("resource_type")
+                base["resources"] = sub_result.get("resources", [])
+                base["total_count"] = sub_result.get("total_count", 0)
+            else:
+                base["resource_type"] = sub_result.get("resource_type")
+                base["resource_name"] = sub_result.get("resource_name")
+                base["gcp_status"] = sub_result.get("gcp_status")
+                base["metadata"] = sub_result.get("metadata")
+            return JSONResponse(status_code=200, content=base)
+
         return JSONResponse(
             status_code=200,
             content={
@@ -245,6 +267,28 @@ async def clarify_request(
                     "correlation_id": str(ctx.correlation_id),
                 },
             )
+
+        if intent == "enquiry":
+            query_type = sub_result.get("query_type", "single")
+            base = {
+                "infra_request_id": str(infra_request_id),
+                "intent": intent,
+                "query_type": query_type,
+                "status": "answered",
+                "answer": sub_result.get("human_readable_summary") or sub_result.get("answer"),
+                "queried_at": sub_result.get("queried_at"),
+                "correlation_id": str(ctx.correlation_id),
+            }
+            if query_type == "list":
+                base["resource_type"] = sub_result.get("resource_type")
+                base["resources"] = sub_result.get("resources", [])
+                base["total_count"] = sub_result.get("total_count", 0)
+            else:
+                base["resource_type"] = sub_result.get("resource_type")
+                base["resource_name"] = sub_result.get("resource_name")
+                base["gcp_status"] = sub_result.get("gcp_status")
+                base["metadata"] = sub_result.get("metadata")
+            return JSONResponse(status_code=200, content=base)
 
         return JSONResponse(
             status_code=200,

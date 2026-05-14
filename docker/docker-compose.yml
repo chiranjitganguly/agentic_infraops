@@ -4,8 +4,8 @@ x-airflow-common: &airflow-common
   image: apache/airflow:2.9.2-python3.11
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
@@ -61,7 +61,7 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:6333/health || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && echo -e \"GET /healthz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q healthz <&3'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -134,6 +134,13 @@ services:
     command: webserver
     ports:
       - "8080:8080"
+    environment:
+      <<: *airflow-env
+      AIRFLOW__WEBSERVER__WORKERS: "2"
+      AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: "300"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
       interval: 30s
@@ -143,6 +150,9 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
       interval: 30s
@@ -151,19 +161,19 @@ services:
 
   airflow-worker:
     <<: *airflow-common
-    command: celery worker
+    command: celery worker --concurrency 2
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     environment:
       <<: *airflow-env
       DUMB_INIT_SETSID: "0"
 
   airflow-init:
     <<: *airflow-common
-    command: >
-      bash -c "
-        airflow db upgrade &&
-        airflow users create --username admin --firstname Admin --lastname User
-          --role Admin --email ${AIRFLOW_ADMIN_EMAIL} --password ${AIRFLOW_ADMIN_PASSWORD}
-      "
+    command: >-
+      bash -c "airflow db upgrade &&
+      airflow users create --username admin --firstname Admin --lastname User --role Admin --email ${AIRFLOW_ADMIN_EMAIL} --password ${AIRFLOW_ADMIN_PASSWORD} || true"
     restart: "no"
 
   # ─── MCP Servers ─────────────────────────────────────────────────────────────
@@ -171,8 +181,11 @@ services:
     build:
       context: ..
       dockerfile: docker/services/mcp_postgres/Dockerfile
+    ports:
+      - "8092:8092"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MCP_PORT: "8092"
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,9 +194,12 @@ services:
     build:
       context: ..
       dockerfile: docker/services/mcp_pubsub/Dockerfile
+    ports:
+      - "8091:8091"
     environment:
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      MCP_PORT: "8091"
     depends_on:
       - pubsub-emulator
 
@@ -191,9 +207,12 @@ services:
     build:
       context: ..
       dockerfile: docker/services/mcp_gcp_resource/Dockerfile
+    ports:
+      - "8090:8090"
     environment:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-sa.json
+      MCP_PORT: "8090"
     volumes:
       - ${GCP_SA_KEY_PATH}:/secrets/gcp-sa.json:ro
 
@@ -201,12 +220,15 @@ services:
     build:
       context: ..
       dockerfile: docker/services/mcp_knowledge_base/Dockerfile
+    ports:
+      - "8093:8093"
     environment:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: infraops_knowledge_base
       LITELLM_GATEWAY_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      MCP_PORT: "8093"
     depends_on:
       qdrant:
         condition: service_healthy
@@ -215,18 +237,24 @@ services:
     build:
       context: ..
       dockerfile: docker/services/mcp_backstage/Dockerfile
+    ports:
+      - "8096:8096"
     environment:
       BACKSTAGE_API_URL: ${BACKSTAGE_API_URL}
       BACKSTAGE_API_TOKEN: ${BACKSTAGE_API_TOKEN}
+      MCP_PORT: "8096"
 
   mcp-gmail:
     build:
       context: ..
       dockerfile: docker/services/mcp_gmail/Dockerfile
+    ports:
+      - "8095:8095"
     environment:
       GMAIL_CREDENTIALS_PATH: /secrets/gmail-creds.json
       GMAIL_TOKEN_PATH: /secrets/gmail-token.json
       INFRAOPS_EMAIL: ${INFRAOPS_EMAIL}
+      MCP_PORT: "8095"
     volumes:
       - ${GMAIL_CREDENTIALS_PATH}:/secrets/gmail-creds.json:ro
       - gmail-token:/secrets
@@ -235,10 +263,13 @@ services:
     build:
       context: ..
       dockerfile: docker/services/mcp_airflow/Dockerfile
+    ports:
+      - "8094:8094"
     environment:
       AIRFLOW_API_URL: http://airflow-webserver:8080/api/v1
       AIRFLOW_USERNAME: ${AIRFLOW_ADMIN_EMAIL}
       AIRFLOW_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      MCP_PORT: "8094"
     depends_on:
       airflow-webserver:
         condition: service_healthy

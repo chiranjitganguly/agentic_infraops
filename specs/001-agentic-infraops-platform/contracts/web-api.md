@@ -79,14 +79,54 @@ Content-Type: application/json
 }
 ```
 
-**Response 200** — FAQ or enquiry resolved immediately (no confirmation needed):
+**Response 200** — FAQ resolved immediately:
 ```json
 {
   "infra_request_id": "<UUID>",
-  "intent": "enquiry | faq",
+  "intent": "faq",
   "status": "answered",
   "answer": "<string>",
   "sources": ["<string>"],
+  "correlation_id": "<UUID>"
+}
+```
+
+**Response 200** — Enquiry resolved immediately (single resource):
+```json
+{
+  "infra_request_id": "<UUID>",
+  "intent": "enquiry",
+  "query_type": "single",
+  "status": "answered",
+  "resource_type": "compute_instance | storage_bucket | vpc_network",
+  "resource_name": "<string>",
+  "gcp_status": "<GCP status string, e.g. RUNNING | TERMINATED | ACTIVE>",
+  "metadata": "<typed metadata object — see a2a-agents.md Enquiry Agent for per-type schemas>",
+  "answer": "<human-readable summary string>",
+  "queried_at": "<ISO 8601>",
+  "correlation_id": "<UUID>"
+}
+```
+
+**Response 200** — Enquiry resolved immediately (list):
+```json
+{
+  "infra_request_id": "<UUID>",
+  "intent": "enquiry",
+  "query_type": "list",
+  "status": "answered",
+  "resource_type": "compute_instance | storage_bucket | vpc_network",
+  "resources": [
+    {
+      "resource_name": "<string>",
+      "gcp_status": "<string>",
+      "zone_or_region": "<string | null>",
+      "key_metadata": "<string>"
+    }
+  ],
+  "total_count": "<int>",
+  "answer": "<human-readable summary string>",
+  "queried_at": "<ISO 8601>",
   "correlation_id": "<UUID>"
 }
 ```
@@ -206,6 +246,61 @@ data: {}
 ```
 
 **Reconnection**: Client should set `EventSource` `reconnectDelay` to 5s. On reconnect, client fetches `GET /jobs/{job_id}` to get current state, then re-subscribes to the stream.
+
+---
+
+### Query GCP Resource Status (direct, bypasses NL classification)
+
+```
+GET /resources/{resource_type}/{resource_name}?project_id=<string>&zone=<string>
+```
+
+- `resource_type`: `compute_instance`, `storage_bucket`, or `vpc_network`
+- `zone`: required for `compute_instance`; omit for bucket/VPC
+
+**Response 200**:
+```json
+{
+  "resource_type": "<string>",
+  "resource_name": "<string>",
+  "gcp_status": "<string>",
+  "metadata": "<typed metadata object>",
+  "human_readable_summary": "<string>",
+  "queried_at": "<ISO 8601>"
+}
+```
+
+**Response 404**: Resource not found in GCP.
+
+---
+
+### List GCP Resources by Type
+
+```
+GET /resources?resource_type=<type>&project_id=<string>&limit=50&offset=0
+```
+
+- `resource_type`: `compute_instance`, `storage_bucket`, or `vpc_network`
+- `project_id`: defaults to the platform's configured GCP project
+
+**Response 200**:
+```json
+{
+  "resource_type": "<string>",
+  "project_id": "<string>",
+  "resources": [
+    {
+      "resource_name": "<string>",
+      "gcp_status": "<string>",
+      "zone_or_region": "<string | null>",
+      "key_metadata": "<string>",
+      "creation_timestamp": "<ISO 8601 | null>"
+    }
+  ],
+  "total_count": "<int>",
+  "queried_at": "<ISO 8601>"
+}
+```
 
 ---
 

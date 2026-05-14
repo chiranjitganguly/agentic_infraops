@@ -27,6 +27,38 @@ Wraps GCP Compute Engine, Cloud Storage, and VPC Network APIs.
 | `delete_vpc_network` | Delete a VPC network (rollback) | `project_id`, `network_name` | `{status}` |
 | `list_project_resources` | List all VMs and buckets in a project | `project_id`, `resource_type` | `[ResourceSummary]` |
 
+### Return Type: `ResourceStatus`
+
+Returned by `get_vm_status`, `get_bucket_status`, `get_vpc_status`.
+
+```json
+{
+  "resource_type": "compute_instance | storage_bucket | vpc_network",
+  "resource_name": "<string>",
+  "project_id": "<string>",
+  "gcp_status": "<GCP API status string, e.g. RUNNING | TERMINATED | ACTIVE>",
+  "zone": "<string | null>",
+  "region": "<string | null>",
+  "metadata": "<typed metadata object — see Enquiry Agent contract for per-type schemas>",
+  "queried_at": "<ISO 8601>"
+}
+```
+
+### Return Type: `ResourceSummary`
+
+Returned in the list from `list_project_resources`.
+
+```json
+{
+  "resource_name": "<string>",
+  "resource_type": "compute_instance | storage_bucket | vpc_network",
+  "gcp_status": "<GCP API status string>",
+  "zone_or_region": "<string | null>",
+  "key_metadata": "<abbreviated single-field summary: machine_type or storage_class or routing_mode>",
+  "creation_timestamp": "<ISO 8601 | null>"
+}
+```
+
 ### Circuit Breaker
 
 All tools are wrapped with a circuit breaker (5 failures → open, 60s reset). Circuit state is exposed as a Prometheus gauge `gcp_resource_mcp_circuit_state{tool, resource_type}`.

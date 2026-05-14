@@ -454,4 +454,7 @@ async def rotate_api_key(user_id: str, new_key_hash: str, expires_at: str) -> di
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import os
+    mcp.settings.host = "0.0.0.0"
+    mcp.settings.port = int(os.environ.get("MCP_PORT", "8092"))
+    mcp.run(transport="sse")

@@ -35,7 +35,7 @@ KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "docs" / "knowledge"
 COLLECTION_NAME = "infraops_knowledge_base"
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
-DENSE_VECTOR_SIZE = 768
+DENSE_VECTOR_SIZE = 1536  # text-embedding-3-small output dimension
 SCORE_THRESHOLD = 0.5
 
 

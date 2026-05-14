@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir hatchling && \
 
 COPY web/backend/ ./web/backend/
 COPY contracts/ ./contracts/
+COPY skills/ ./skills/
+COPY mcp_servers/ ./mcp_servers/
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 

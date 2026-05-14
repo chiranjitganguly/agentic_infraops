@@ -158,4 +158,7 @@ def list_entities_by_owner(owner: str, kind: str | None = None) -> list[dict[str
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import os
+    mcp.settings.host = "0.0.0.0"
+    mcp.settings.port = int(os.environ.get("MCP_PORT", "8096"))
+    mcp.run(transport="sse")

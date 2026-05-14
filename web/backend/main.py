@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from contracts.shared.logging import configure_logging, get_logger
 from web.backend.middleware.auth import AuthMiddleware
-from web.backend.routers import auth, jobs, requests, sse
+from web.backend.routers import auth, jobs, requests, resources, sse
 
 configure_logging(service_name="infraops-web")
 logger = get_logger("infraops-web")
@@ -61,6 +61,7 @@ app.add_middleware(AuthMiddleware)
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(requests.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
+app.include_router(resources.router, prefix="/api/v1")
 app.include_router(sse.router, prefix="/api/v1")
 
 

@@ -116,7 +116,32 @@ def _process_message(message: pubsub_v1.subscriber.message.Message) -> None:
     message.ack()
 
 
+_TOPIC = "infraops-provisioning-status"
+_TOPIC_PATH = f"projects/{_PROJECT_ID}/topics/{_TOPIC}"
+
+
+def _ensure_subscription() -> None:
+    publisher = pubsub_v1.PublisherClient()
+    subscriber = pubsub_v1.SubscriberClient()
+
+    try:
+        publisher.get_topic(request={"topic": _TOPIC_PATH})
+    except Exception:
+        publisher.create_topic(request={"name": _TOPIC_PATH})
+        logger.info("pubsub_topic_created", topic=_TOPIC_PATH)
+
+    try:
+        subscriber.get_subscription(request={"subscription": _SUBSCRIPTION_PATH})
+    except Exception:
+        subscriber.create_subscription(
+            request={"name": _SUBSCRIPTION_PATH, "topic": _TOPIC_PATH}
+        )
+        logger.info("pubsub_subscription_created", subscription=_SUBSCRIPTION_PATH)
+
+
 def run_notification_service() -> None:
+    _ensure_subscription()
+
     subscriber = pubsub_v1.SubscriberClient()
 
     logger.info("notification_service_started", subscription=_SUBSCRIPTION_PATH)

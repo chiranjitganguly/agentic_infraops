@@ -58,6 +58,8 @@ from skills.intent_classification.classifier import (
 configure_logging(service_name="orchestrator-agent")
 logger = get_logger("orchestrator-agent")
 
+_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "")
+
 
 class PostgresClient(Protocol):
     async def increment_daily_usage(self, requesting_user: str, daily_limit: int) -> dict: ...
@@ -235,10 +237,16 @@ async def route(
             user_role=input.user_role,
         )
     elif classification.intent == "enquiry":
+        query_type = "list" if not classification.resource_name else "single"
         sub_result = await enquiry_agent.submit(
             correlation_id=str(input.correlation_id),
             request_id=str(input.request_id),
-            classification=classification,
+            query_type=query_type,
+            resource_type=classification.resource_type or "compute_instance",
+            resource_name=classification.resource_name,
+            project_id=classification.project_id or _PROJECT_ID,
+            zone=classification.zone,
+            region=classification.region,
             requesting_user=input.requesting_user,
             user_role=input.user_role,
         )
