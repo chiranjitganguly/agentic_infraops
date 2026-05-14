@@ -1,0 +1,611 @@
+****************************
+/speckit-specify
+title: Agentic InfraOps Self-Service Platform (Phase 1)
+
+goal:
+Build an agentic Infrastructure Operations (InfraOps) self-service system on GCP that supports:
+- Infrastructure provisioning
+- Infrastructure status enquiry
+- Best-practice guidance (FAQ)
+
+scope:
+in_scope:
+- VM provisioning (Compute Engine)
+- Storage bucket provisioning (Cloud Storage)
+- Basic VPC setup
+- Resource status queries
+- Documentation-based FAQ responses
+out_of_scope:
+- Incident detection
+- Alerting
+- Root cause analysis
+- Cost optimization
+- Policy enforcement
+
+users:
+
+* platform_engineers
+* developers
+
+interaction_channels:
+
+* email
+* chatbot
+
+core_capabilities:
+
+* intent_classification (provision, enquiry, faq)
+* request_normalization (unstructured → structured)
+* workflow_orchestration
+* event_driven_communication
+* knowledge_retrieval
+
+architecture_constraints:
+agent_framework: Google ADK
+workflow_engine: Apache Airflow
+service_catalog: Backstage
+communication:
+- a2a
+- pubsub
+cloud_provider: GCP
+open_source_preference: true
+mcp_usage: required_where_possible
+
+agents_required:
+
+* orchestrator_agent:
+  role: central coordinator and router
+* provisioning_agent:
+  role: infra provisioning on GCP
+* enquiry_agent:
+  role: infra status retrieval
+* faq_agent:
+  role: best practices and documentation answers
+
+key_flows:
+
+* name: provision_vm
+  steps:
+
+  * user_request_via_chat_or_email
+  * normalize_request
+  * classify_intent_provision
+  * orchestrator_routes_to_provisioning
+  * airflow_executes_provisioning
+  * publish_status_event
+
+* name: enquiry_flow
+  steps:
+
+  * user_requests_status
+  * normalize_request
+  * classify_intent_enquiry
+  * orchestrator_routes_to_enquiry_agent
+  * fetch_status_from_gcp
+  * return_response
+
+* name: faq_flow
+  steps:
+
+  * user_asks_question
+  * normalize_request
+  * classify_intent_faq
+  * orchestrator_routes_to_faq_agent
+  * retrieve_documents
+  * generate_answer
+
+non_functional_requirements:
+observability:
+- logging
+- metrics
+- tracing
+security:
+- authentication (OAuth2 or equivalent)
+- authorization (RBAC)
+- audit_logs
+reliability:
+- idempotent_requests
+- retry_mechanisms
+scalability:
+- stateless_agents
+- horizontal_scaling
+
+extensibility_requirements:
+
+* ability_to_add_new_agents
+* pluggable_workflows
+* extensible_message_contracts
+
+expected_output_from_speckit:
+
+* agent_definitions
+* communication_contracts
+* pubsub_topic_definitions
+* airflow_dag_specs
+* input_output_schemas
+* gcp_integration_specs
+* knowledge_retrieval_design
+
+intent_examples:
+  provision:
+    - "Create a VM with 4 CPUs in us-central1"
+  enquiry:
+    - "What is the status of vm-123?"
+  faq:
+    - "What is the best practice for VPC design?"
+
+
+
+=====================================
+/speckit-plan
+title: Implementation Plan for Agentic Infra Ops Platform (Phase 1)
+
+objective:
+  Build the first deployable version of the Agentic Infra Ops platform
+  for GCP supporting:
+    - infrastructure provisioning
+    - infrastructure status enquiry
+    - FAQ/best-practice guidance
+
+implementation_strategy:
+  approach:
+    - contract_first
+    - api_and_event_driven
+    - skills_first
+    - incremental_delivery
+    - local_first_development
+
+  priorities:
+    - establish foundational architecture
+    - validate orchestration patterns early
+    - lock contracts before implementation
+    - maximize reusable skills
+    - ensure local docker deployment from day one
+
+system_components:
+
+  core_services:
+    - orchestrator_agent
+    - provisioning_agent
+    - enquiry_agent
+    - faq_agent
+
+  shared_platform_components:
+    - litellm_gateway
+    - pubsub_layer
+    - airflow
+    - backstage
+    - vector_store
+    - observability_stack
+
+  shared_skill_packages:
+    - gcp_compute_skills
+    - gcp_storage_skills
+    - gcp_network_skills
+    - status_query_skills
+    - document_retrieval_skills
+    - intent_classification_skills
+
+architecture_decisions:
+
+  programming_language: python
+
+  llm_access:
+    standard: LiteLLM
+    direct_provider_access_allowed: false
+
+  orchestration:
+    workflow_engine: Apache Airflow
+    agent_framework: Google ADK
+
+  communication:
+    synchronous: a2a
+    asynchronous: pubsub
+
+  deployment:
+    local_runtime: docker_compose
+    cloud_runtime_future: kubernetes
+
+  testing:
+    framework: pytest
+
+  observability:
+    logging: structured_logging
+    tracing: distributed_tracing
+    metrics: prometheus_compatible
+
+implementation_phases:
+
+  - phase: foundation_setup
+
+    goals:
+      - establish repo structure
+      - establish local docker runtime
+      - configure LiteLLM gateway
+      - configure Airflow
+      - configure Pub/Sub emulator
+      - configure observability stack
+
+    deliverables:
+      - docker_compose_stack
+      - base_python_project_structure
+      - ci_cd_scaffolding
+      - shared_config_module
+      - structured_logging_framework
+
+  - phase: contract_and_schema_layer
+
+    goals:
+      - finalize schemas
+      - finalize event contracts
+      - finalize skill interfaces
+      - establish validation framework
+
+    deliverables:
+      - request_response_schemas
+      - pubsub_contracts
+      - pydantic_models
+      - schema_validation_pipeline
+
+  - phase: skill_implementation
+
+    goals:
+      - implement reusable operational skills
+      - validate skill composability
+
+    deliverables:
+      - compute_provisioning_skill
+      - bucket_provisioning_skill
+      - vpc_setup_skill
+      - status_query_skill
+      - document_retrieval_skill
+
+  - phase: orchestrator_and_agents
+
+    goals:
+      - implement orchestrator agent
+      - implement provisioning agent
+      - implement enquiry agent
+      - implement faq agent
+
+    deliverables:
+      - intent_routing
+      - workflow_triggering
+      - agent_contract_handlers
+      - pubsub_consumers_and_publishers
+
+  - phase: workflow_implementation
+
+    goals:
+      - implement Airflow DAGs
+      - integrate workflows with agents
+
+    deliverables:
+      - provisioning_dag
+      - enquiry_dag
+      - retry_and_failure_handling
+
+  - phase: evaluation_and_testing
+
+    goals:
+      - implement testing framework
+      - implement agent evaluation framework
+      - validate end_to_end flows
+
+    deliverables:
+      - pytest_suite
+      - integration_tests
+      - contract_tests
+      - evaluation_datasets
+      - hallucination_checks
+      - workflow_validation_tests
+
+  - phase: backstage_and_documentation
+
+    goals:
+      - register services and skills
+      - expose discoverability
+      - finalize documentation
+
+    deliverables:
+      - backstage_catalog_entries
+      - operational_runbooks
+      - architecture_docs
+      - onboarding_docs
+
+initial_user_flows:
+
+  - name: vm_provisioning_flow
+
+    steps:
+      - user_submits_request_via_chat_or_email
+      - input_normalization
+      - intent_classification
+      - orchestrator_routes_request
+      - provisioning_agent_executes_skill
+      - airflow_tracks_workflow
+      - status_event_published
+      - response_returned_to_user
+
+  - name: infrastructure_status_flow
+
+    steps:
+      - user_submits_enquiry
+      - orchestrator_routes_request
+      - enquiry_agent_executes_status_skill
+      - response_generated
+
+  - name: faq_flow
+
+    steps:
+      - user_submits_question
+      - faq_agent_executes_retrieval_skill
+      - grounded_response_generated
+
+repository_structure:
+
+  monorepo: true
+
+  modules:
+    - agents/
+    - skills/
+    - workflows/
+    - contracts/
+    - evaluations/
+    - infrastructure/
+    - docker/
+    - observability/
+    - docs/
+
+risk_areas:
+
+  - orchestration_complexity
+  - schema_evolution
+  - pubsub_message_reliability
+  - agent_hallucination
+  - workflow_retry_consistency
+  - cloud_api_rate_limits
+
+success_criteria:
+
+  - local_end_to_end_stack_runs_via_docker
+  - provisioning_flow_operational
+  - enquiry_flow_operational
+  - faq_flow_operational
+  - schemas_versioned_and_validated
+  - observability_enabled
+  - evaluation_framework_operational
+  - all_tests_pass
+
+non_goals:
+
+  - multi_cloud_support
+  - autonomous_remediation
+  - incident_management
+  - production_kubernetes_deployment
+  - advanced_policy_engines   
+
+
+
+
+  Instructions for running Phase 1
+  ----------------------------------------------------------
+  
+  Step 1 — Start core infrastructure
+
+  docker compose -f docker/docker-compose.yml up -d \
+    postgres redis pubsub-emulator litellm prometheus grafana
+
+docker compose -f docker/docker-compose.yml up -d postgres redis pubsub-emulator litellm prometheus grafana    
+docker compose -f docker/docker-compose.yml --env-file .env up -d postgres redis pubsub-emulator litellm prometheus grafana
+  Step 2 — Start Airflow
+
+  docker compose -f docker/docker-compose.yml up -d airflow-init
+  # Wait ~30s then:
+  docker compose -f docker/docker-compose.yml up -d \
+    airflow-webserver airflow-scheduler airflow-worker
+
+  Step 3 — Run DB migrations
+
+  DATABASE_URL="postgresql://infraops:admin@localhost:5432/infraops" \
+    python infrastructure/scripts/migrate.py
+
+  Step 4 — Set up PubSub topics and subscriptions
+
+  This creates the infraops.provisioning.requests topic and infraops-provisioning-requests-vm-sub subscription on the local emulator — the DAG's PubSubPullSensor listens on that subscription.
+  
+  PUBSUB_EMULATOR_HOST=localhost:8085 \
+  GCP_PROJECT_ID=local-dev \
+    python infrastructure/pubsub/setup.py
+  
+  Step 5 — Start MCP servers and agents
+
+  docker compose -f docker/docker-compose.yml up -d \
+    mcp-postgres mcp-pubsub mcp-gcp-resource mcp-backstage
+
+  docker compose -f docker/docker-compose.yml up -d \
+    orchestrator-agent provisioning-agent
+
+  docker compose -f docker/docker-compose.yml up -d web-backend
+
+  Step 6 — Create a test user
+
+  DATABASE_URL="postgresql://infraops:changeme@localhost:5432/infraops" \
+    python infrastructure/scripts/create_user.py \
+      --user-id dev@yourorg.com \
+      --role developer
+
+  Save the printed API key.
+
+  ---
+  Step 7 — Submit a VM creation request
+
+  curl -s -X POST http://localhost:8000/api/v1/requests \
+    -H "X-API-Key: <your-api-key>" \
+    -H "Content-Type: application/json" \
+    -d '{"raw_input": "Create a VM named my-test-vm with 4 CPUs in us-central1"}' \
+    | jq .
+  
+  The response will be 202 with a job_id and confirmation_summary. Read the summary — it lists what will be created and that you have 20 minutes to confirm.
+  
+  Step 8 — Confirm the provisioning
+  
+  curl -s -X POST http://localhost:8000/api/v1/jobs/<job_id>/confirm \
+    -H "X-API-Key: <your-api-key>" \
+    | jq .
+  
+  This publishes a ProvisioningRequestEvent to PubSub. The Airflow DAG's PubSubPullSensor picks it up within ~10 seconds.
+  
+  Step 9 — Monitor job status
+  
+  # Poll until status is succeeded or failed
+  watch -n 5 'curl -s http://localhost:8000/api/v1/jobs/<job_id> \
+    -H "X-API-Key: <your-api-key>" | jq ".status, .gcp_resource_id"'
+
+  You can also watch the Airflow DAG run at http://localhost:8080 → DAGs → provision_vm_dag.
+
+  ---
+  What happens in Airflow
+
+  wait_for_message → update_in_progress → dry_run_validate → provision_vm → register_backstage → succeeded
+                                                                                ↓ (on failure)
+                                                                           rollback_vm → failed
+
+  One important caveat: the register_backstage step calls the real Backstage API (BACKSTAGE_API_URL). If Backstage isn't running locally, that step will fail and trigger rollback even though the VM was created
+  in GCP. To avoid this for local testing, set BACKSTAGE_API_URL=http://localhost:7007/api and either run Backstage locally or set BACKSTAGE_API_TOKEN to a dummy value and accept the rollback — or skip the
+  backstage step by commenting out that task in the DAG temporarily. 
+
+  *******************************
+  Phase 1 Run & Test Steps
+  
+  Phase 1 is the Foundation Setup — it validates the Docker Compose stack, database,
+   and base infrastructure come up cleanly.
+
+  Step 1: Create your .env file
+
+  cp .env.example .env
+
+  Then edit .env and fill in the required values:
+
+  ┌────────────────────────┬───────────────────────────────────────────────────┐
+  What to set: agentic-infraops (matches your credentials)
+  ────────────────────────────────────────
+  Variable: GCP_SA_KEY_PATH
+  What to set: ./secrets/gcp-sa.json (already exists)
+  ────────────────────────────────────────
+  Variable: GMAIL_CREDENTIALS_PATH
+  What to set: ./secrets/gmail-credentials.json (already exists)
+  ────────────────────────────────────────
+  Variable: OPENAI_API_KEY or ANTHROPIC_API_KEY
+  What to set: Your LLM provider key
+  ────────────────────────────────────────
+  Variable: LITELLM_MASTER_KEY
+  What to set: Any string, e.g. sk-local-dev
+  ────────────────────────────────────────
+  Variable: AIRFLOW_FERNET_KEY
+  What to set: Generate with: python -c "from cryptography.fernet import Fernet; 
+    print(Fernet.generate_key().decode())"
+  ────────────────────────────────────────
+  Variable: All changeme passwords
+  What to set: Set to anything for local dev
+
+  Step 2: Start the stack
+
+  docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml --env-file .env up -d 
+  This starts PostgreSQL, Qdrant, PubSub emulator, LiteLLM, Airflow, Prometheus,
+  Grafana, and all MCP servers.
+
+  Step 3: Wait for services to be healthy, then run DB migrations
+
+  # Check all containers are running
+  docker compose -f docker/docker-compose.yml --env-file .env ps
+
+  # Run migrations
+  python infrastructure/scripts/migrate.py --env local
+
+  Step 4: Seed the knowledge base
+
+  python infrastructure/scripts/seed_knowledge_base.py \
+    --docs-dir docs/knowledge/ \
+    --qdrant-url http://localhost:6333
+
+
+  Step 5: Create a test user
+
+  python infrastructure/scripts/create_user.py \
+    --user-id cg4ai@gmail.com \
+    --role developer
+  This prints an API key — save it for testing.
+  
+  Step 6: Run the contract and unit tests
+
+  # Contract tests (schema validation — no services needed)
+  pytest tests/contract -m "contract" --tb=short
+
+  # Unit tests
+  pytest tests/unit -m "not integration" --tb=short
+
+  Step 7: Verify service UIs are reachable
+
+  ┌─────────┬─────────────────────────────────┐
+  │   Service   │               URL               │
+  ├─────────────┼─────────────────────────────────┤
+  │ Airflow     │ http://localhost:8080           │
+  ├─────────────┼─────────────────────────────────┤
+  │ Grafana     │ http://localhost:3000           │
+  ├─────────────┼─────────────────────────────────┤
+  │ Qdrant      │ http://localhost:6333/dashboard │
+  ├─────────────┼─────────────────────────────────┤
+  │ LiteLLM     │ http://localhost:4000           │
+  ├─────────────┼─────────────────────────────────┤
+  docker compose -f docker/docker-compose.yml up -d
+
+  This starts PostgreSQL, Qdrant, PubSub emulator, LiteLLM, Airflow, Prometheus,
+  Grafana, and all MCP servers.
+
+  Step 3: Wait for services to be healthy, then run DB migrations
+
+  # Check all containers are running
+  docker compose -f docker/docker-compose.yml ps
+
+  # Run migrations
+  python infrastructure/scripts/migrate.py --env local
+
+  Step 4: Seed the knowledge base
+
+  python infrastructure/scripts/seed_knowledge_base.py \
+    --docs-dir docs/knowledge/ \
+    --qdrant-url http://localhost:6333
+
+  Step 5: Create a test user
+
+  python infrastructure/scripts/create_user.py \
+    --user-id dev@yourorg.com \
+    --role developer
+  This prints an API key — save it for testing.
+
+  Step 6: Run the contract and unit tests
+
+  # Contract tests (schema validation — no services needed)
+  pytest tests/contract -m "contract" --tb=short
+
+  # Unit tests
+  pytest tests/unit -m "not integration" --tb=short
+
+  Step 7: Verify service UIs are reachable
+
+  ┌─────────────┬─────────────────────────────────┐
+  │   Service   │               URL               │
+  ├─────────────┼─────────────────────────────────┤
+  │ Airflow     │ http://localhost:8080           │
+  ├─────────────┼─────────────────────────────────┤
+  │ Grafana     │ http://localhost:3000           │
+  ├─────────────┼─────────────────────────────────┤
+  │ Qdrant      │ http://localhost:6333/dashboard │
+  ├─────────────┼─────────────────────────────────┤
+  │ LiteLLM     │ http://localhost:4000           │
+  ├─────────────┼─────────────────────────────────┤
+
+
+  docker compose -f docker/docker-compose.yml --env-file .env stop

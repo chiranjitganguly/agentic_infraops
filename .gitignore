@@ -61,5 +61,5 @@ qdrant-data/
 airflow-logs/
 
 # Instructions / internal
-/instructions
+#/instructions
 /skills-lock.json
