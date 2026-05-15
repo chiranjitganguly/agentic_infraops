@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For additional context about technologies to be used, project structure, shell commands, and other important information, read the current plan at specs/001-agentic-infraops-platform/plan.md
 
+<!-- SPECKIT START -->
+Active feature plan: specs/002-infraqa-react-ui/plan.md
+<!-- SPECKIT END -->
+
 ## Project Overview
 
 Multi-agent, event-driven GCP infrastructure self-service platform. Developers submit natural-language requests (via chatbot or email) to provision VMs/buckets/VPCs, query resource status, or get FAQ answers. The full stack runs locally via Docker Compose.

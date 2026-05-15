@@ -359,11 +359,14 @@ services:
         condition: service_started
 
   web-frontend:
-    image: nginx:alpine
+    build:
+      context: ../web/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+        VITE_API_KEY: ${VITE_API_KEY}
     ports:
-      - "5173:80"
-    volumes:
-      - ../web/frontend:/usr/share/nginx/html:ro
+      - "3001:80"
     depends_on:
       - web-backend
 

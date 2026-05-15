@@ -258,6 +258,64 @@ queued ──(user cancels before Airflow picks up)──► cancelled
 
 ---
 
+## Intent Confirmation Card (Web UI)
+
+The **Intent Confirmation Card** is the web UI's single interaction point for non-FAQ requests. It merges two backend concerns into one user-visible element:
+
+- **For provisioning intents**: combines the orchestrator's plain-language intent restatement with the Provisioning Agent's `confirmation_summary` (GCP parameters) and `expires_at` countdown. One card, one click. Clicking "Looks right, continue" calls `POST /jobs/{job_id}/confirm`. Clicking "Rephrase" calls `POST /jobs/{job_id}/cancel` then restores the input. When the client-side countdown expires: disable the confirm button first, then call `POST /jobs/{job_id}/cancel` explicitly, then show the expiry message. Do not rely solely on the backend's own expiry — the cancel call is explicit.
+- **For enquiry intents**: shows only the plain-language intent restatement (no parameter summary, no countdown). The enquiry result is already present in the initial response payload; "Looks right, continue" renders it immediately without an additional network call.
+- **For FAQ intents**: no card appears. The answer renders directly.
+
+**Rule**: The Intent Confirmation Card replaces what would otherwise be a separate "Confirmation Flow" UI step for provisioning. There is no second confirmation screen — the card is the confirmation screen.
+
+**Trace persistence**: The agent trace snapshot for each request is stored in the session-scoped Conversation object alongside its messages. Revisiting a past conversation in the sidebar shows its persisted trace — there is no live replay.
+
+**Synonym to avoid**: Do not call this a "clarification card" — that term belongs to the Clarification Loop (low-confidence intent). The Intent Confirmation Card fires when intent is understood; the Clarification Loop fires when it is not.
+
+### `intent_summary` (backend-provided, display field)
+
+Every non-FAQ response from `POST /api/v1/requests` includes an `intent_summary` string: a plain-language sentence describing what the orchestrator understood the user to be requesting (e.g., "Provision a compute instance named vm-prod-01 with 4 CPUs in us-central1"). The frontend displays this verbatim in the Intent Confirmation Card — it never constructs this text itself.
+
+**Rule**: The frontend is a pure display layer for `intent_summary`. Business-language summarisation of orchestrator intent belongs in the backend, not the UI.
+
+### Error Display (Web UI)
+
+All backend error outcomes — `guardrail_violation` (403), `rate_limited` (429), `rejected` (400), and 5xx — are rendered as **inline messages in the chat thread** directly below the user's message. No toasts, modals, or banners. The backend's error message text is displayed verbatim for 4xx errors; a generic fallback is shown for 5xx to avoid exposing internals. The input re-enables after every error so the user can try again without reloading.
+
+**Synonym to avoid**: Do not call this field `intent_description`, `summary`, or `human_summary` — `intent_summary` is canonical.
+
+---
+
+### Clarification Card (Web UI)
+
+When the backend returns `outcome: clarification_needed`, the UI renders an inline **Clarification Card** directly below the user's original message in the chat thread. It shows the orchestrator's clarification question and a single-line text input with a "Submit answer" button. Submitting calls `POST /requests/{infra_request_id}/clarify`. The card is visually distinct from both the Intent Confirmation Card and regular message bubbles. Maximum 2 clarification rounds per request — after that, the backend rejects and the user starts fresh.
+
+---
+
+## Web UI Authentication
+
+The web backend requires API key authentication on every endpoint. The web frontend supplies the key as `Authorization: Bearer <key>` on all HTTP requests. The key is not managed at runtime — it is baked into the frontend build via the `VITE_API_KEY` environment variable.
+
+On startup, the frontend calls `GET /auth/me` to retrieve the current `user_id`, `role`, `daily_provisioning_count`, and `daily_provisioning_limit`. These are displayed in the header and used to contextualise the session (e.g., showing remaining daily provisioning capacity to developer-role users).
+
+**Rule**: There is no login page, session management, or token refresh cycle in this iteration. Auth is a static bearer token configured at build time.
+
+---
+
+## Web UI Response Delivery Model
+
+Response delivery from the web backend to the browser differs by intent:
+
+- **FAQ intent**: `POST /api/v1/requests` returns a complete `200 JSONResponse` containing `answer` and `sources`. No streaming. The UI shows a loading indicator until the full response arrives, then renders it at once.
+- **Enquiry intent**: `POST /api/v1/requests` returns a complete `200 JSONResponse` containing resource status or list data. No streaming.
+- **Provisioning intent**: `POST /api/v1/requests` returns `202` with a `job_id`. After the user confirms via `POST /jobs/{job_id}/confirm`, the UI opens a Server-Sent Events connection to `GET /jobs/{job_id}/stream` to receive real-time job state transitions driven by PostgreSQL LISTEN/NOTIFY.
+
+**Rule**: SSE is only used for provisioning job status. FAQ and enquiry responses are always complete synchronous JSON.
+
+**Synonym to avoid**: Do not describe FAQ/enquiry responses as "streamed" — they are synchronous. "Streaming" in this codebase refers exclusively to the provisioning SSE job status stream.
+
+---
+
 ## ProvisioningJob (state authority)
 
 The **Airflow DAG** is the single authoritative writer of ProvisioningJob state in PostgreSQL (via the `postgres-mcp`). It writes state at each transition, which triggers PostgreSQL LISTEN/NOTIFY, which drives SSE to the browser.
