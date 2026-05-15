@@ -50,6 +50,12 @@ class _FakePostgresClient:
                 return job
         return {}
 
+    async def create_infra_request(self, request_data: dict) -> dict:
+        req_id = str(uuid.uuid4())
+        req = {"id": req_id, **request_data}
+        self.requests[req_id] = req
+        return req
+
     async def create_provisioning_job(self, job_data: dict) -> dict:
         job_id = str(uuid.uuid4())
         job = {"id": job_id, **job_data, "created_at": datetime.now(timezone.utc).isoformat()}

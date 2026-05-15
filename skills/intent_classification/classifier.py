@@ -1,10 +1,13 @@
-"""T041 — Intent classification skill using LiteLLM structured output.
+"""Intent classification skill using LiteLLM structured output.
 
 classify(raw_input, channel) → ClassificationResult
 
 Performs extraction + resolution in a single LLM pass (normalisation).
-Produces typed GCP parameters: VMParameters | BucketParameters | VPCParameters | None.
-Confidence is returned by the model as part of the function-call output.
+ClassificationResult carries intent, confidence, and a typed normalized payload
+(NormalizedVMRequest | NormalizedBucketRequest | NormalizedVPCRequest |
+ NormalizedEnquiryRequest | NormalizedFAQRequest | None).
+
+Callers never read individual GCP fields — they receive the whole typed object.
 """
 from __future__ import annotations
 
@@ -129,26 +132,102 @@ Email channel note: users tend to write formally; apply the same normalisation r
 """
 
 
+# ─── Typed normalized payload types ──────────────────────────────────────────
+
+@dataclass
+class NormalizedVMRequest:
+    """Fully resolved parameters for a VM provisioning request."""
+    resource_type: str = "compute_instance"
+    resource_name: str = ""
+    region: str = "us-central1"
+    zone: str | None = None
+    machine_type: str = "e2-standard-4"
+    disk_size_gb: int = 50
+    image_family: str = "debian-12"
+    image_project: str = "debian-cloud"
+    network: str = "default"
+    tags: list[str] = field(default_factory=list)
+
+    def as_parameters(self) -> dict[str, Any]:
+        """Return the subset passed as ProvisioningInput.parameters."""
+        return {
+            "machine_type": self.machine_type,
+            "disk_size_gb": self.disk_size_gb,
+            "image_family": self.image_family,
+            "image_project": self.image_project,
+            "network": self.network,
+            "tags": self.tags,
+        }
+
+
+@dataclass
+class NormalizedBucketRequest:
+    """Fully resolved parameters for a bucket provisioning request."""
+    resource_type: str = "storage_bucket"
+    resource_name: str = ""
+    region: str = "us-central1"
+    storage_class: str = "STANDARD"
+    versioning_enabled: bool = False
+
+    def as_parameters(self) -> dict[str, Any]:
+        return {
+            "storage_class": self.storage_class,
+            "versioning_enabled": self.versioning_enabled,
+        }
+
+
+@dataclass
+class NormalizedVPCRequest:
+    """Fully resolved parameters for a VPC provisioning request."""
+    resource_type: str = "vpc_network"
+    resource_name: str = ""
+    region: str = "us-central1"
+    subnet_name: str = ""
+    subnet_cidr: str = "10.0.0.0/24"
+    auto_create_subnetworks: bool = False
+
+    def as_parameters(self) -> dict[str, Any]:
+        return {
+            "auto_create_subnetworks": self.auto_create_subnetworks,
+            "subnet_name": self.subnet_name,
+            "subnet_region": self.region,
+            "subnet_cidr": self.subnet_cidr,
+        }
+
+
+@dataclass
+class NormalizedEnquiryRequest:
+    """Resolved parameters for a resource status enquiry."""
+    query_type: str = "single"  # "single" | "list"
+    resource_type: str = "compute_instance"
+    resource_name: str | None = None
+    project_id: str | None = None
+    zone: str | None = None
+    region: str | None = None
+
+
+@dataclass
+class NormalizedFAQRequest:
+    """The original user question, preserved for FAQ retrieval."""
+    question: str = ""
+
+
+NormalizedPayload = (
+    NormalizedVMRequest
+    | NormalizedBucketRequest
+    | NormalizedVPCRequest
+    | NormalizedEnquiryRequest
+    | NormalizedFAQRequest
+)
+
+
+# ─── ClassificationResult ─────────────────────────────────────────────────────
+
 @dataclass
 class ClassificationResult:
     intent: str
     confidence: float
-    resource_type: str | None = None
-    resource_name: str | None = None
-    region: str | None = None
-    zone: str | None = None
-    machine_type: str | None = None
-    disk_size_gb: int | None = None
-    image_family: str | None = None
-    image_project: str | None = None
-    network: str | None = None
-    tags: list[str] = field(default_factory=list)
-    storage_class: str | None = None
-    versioning_enabled: bool | None = None
-    subnet_name: str | None = None
-    subnet_cidr: str | None = None
-    project_id: str | None = None
-    normalized_params: dict[str, Any] = field(default_factory=dict)
+    normalized: NormalizedPayload | None = None
 
 
 async def classify(raw_input: str, channel: ChannelType | str) -> ClassificationResult:
@@ -196,33 +275,69 @@ async def classify(raw_input: str, channel: ChannelType | str) -> Classification
     tool_call = response.choices[0].message.tool_calls[0]
     args: dict[str, Any] = json.loads(tool_call.function.arguments)
 
+    intent: str = args["intent"]
+    confidence: float = float(args["confidence"])
+
     logger.info(
         "intent_classified",
-        intent=args.get("intent"),
-        confidence=args.get("confidence"),
+        intent=intent,
+        confidence=confidence,
         resource_type=args.get("resource_type"),
         channel=str(channel),
     )
 
-    normalized: dict[str, Any] = {k: v for k, v in args.items() if k not in {"intent", "confidence"}}
-
     return ClassificationResult(
-        intent=args["intent"],
-        confidence=float(args["confidence"]),
-        resource_type=args.get("resource_type"),
-        resource_name=args.get("resource_name"),
-        region=args.get("region"),
-        zone=args.get("zone"),
-        machine_type=args.get("machine_type"),
-        disk_size_gb=args.get("disk_size_gb"),
-        image_family=args.get("image_family"),
-        image_project=args.get("image_project"),
-        network=args.get("network"),
-        tags=args.get("tags", []),
-        storage_class=args.get("storage_class"),
-        versioning_enabled=args.get("versioning_enabled"),
-        subnet_name=args.get("subnet_name"),
-        subnet_cidr=args.get("subnet_cidr"),
-        project_id=args.get("project_id"),
-        normalized_params=normalized,
+        intent=intent,
+        confidence=confidence,
+        normalized=_build_normalized(intent, raw_input, args),
     )
+
+
+def _build_normalized(intent: str, raw_input: str, args: dict[str, Any]) -> NormalizedPayload | None:
+    """Translate flat LLM output into a typed normalized payload."""
+    resource_type = args.get("resource_type", "compute_instance")
+
+    if intent == "provision":
+        if resource_type == "compute_instance":
+            return NormalizedVMRequest(
+                resource_name=args.get("resource_name", ""),
+                region=args.get("region", "us-central1"),
+                zone=args.get("zone"),
+                machine_type=args.get("machine_type", "e2-standard-4"),
+                disk_size_gb=args.get("disk_size_gb", 50),
+                image_family=args.get("image_family", "debian-12"),
+                image_project=args.get("image_project", "debian-cloud"),
+                network=args.get("network", "default"),
+                tags=args.get("tags", []),
+            )
+        if resource_type == "storage_bucket":
+            return NormalizedBucketRequest(
+                resource_name=args.get("resource_name", ""),
+                region=args.get("region", "us-central1"),
+                storage_class=args.get("storage_class", "STANDARD"),
+                versioning_enabled=args.get("versioning_enabled", False),
+            )
+        if resource_type == "vpc_network":
+            return NormalizedVPCRequest(
+                resource_name=args.get("resource_name", ""),
+                region=args.get("region", "us-central1"),
+                subnet_name=args.get("subnet_name", ""),
+                subnet_cidr=args.get("subnet_cidr", "10.0.0.0/24"),
+                auto_create_subnetworks=False,
+            )
+
+    if intent == "enquiry":
+        resource_name = args.get("resource_name")
+        return NormalizedEnquiryRequest(
+            query_type="list" if not resource_name else "single",
+            resource_type=resource_type,
+            resource_name=resource_name,
+            project_id=args.get("project_id"),
+            zone=args.get("zone"),
+            region=args.get("region"),
+        )
+
+    if intent == "faq":
+        return NormalizedFAQRequest(question=raw_input)
+
+    return None

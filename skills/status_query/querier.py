@@ -13,15 +13,16 @@ from contracts.agents.enquiry import (
     VPCMetadata,
 )
 from contracts.shared.logging import get_logger
+from contracts.shared.protocols import GcpResourceClient
 
 logger = get_logger("status-query-skill")
 
 _PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "")
 
 
-def _resource_mcp() -> object:
+def _default_gcp_client() -> GcpResourceClient:
     from mcp_servers.gcp_resource import server
-    return server
+    return server  # type: ignore[return-value]
 
 
 def query_resource_status(
@@ -30,14 +31,15 @@ def query_resource_status(
     project_id: str,
     zone: str | None = None,
     region: str | None = None,
+    gcp_client: GcpResourceClient | None = None,
 ) -> dict:
     """Query live GCP status for a single named resource.
 
     Returns a dict with keys: resource_type, resource_name, gcp_status, metadata, queried_at.
     metadata is a typed VMMetadata | BucketMetadata | VPCMetadata object.
-    Raises ValueError if the resource is NOT_FOUND.
+    Returns a not_found dict if the resource does not exist.
     """
-    mcp = _resource_mcp()
+    mcp = gcp_client if gcp_client is not None else _default_gcp_client()
     project_id = project_id or _PROJECT_ID
 
     if resource_type == ResourceType.compute_instance:
@@ -67,9 +69,13 @@ def query_resource_status(
     }
 
 
-def list_resources(resource_type: ResourceType, project_id: str) -> list[ResourceSummary]:
+def list_resources(
+    resource_type: ResourceType,
+    project_id: str,
+    gcp_client: GcpResourceClient | None = None,
+) -> list[ResourceSummary]:
     """List all GCP resources of the given type in the project."""
-    mcp = _resource_mcp()
+    mcp = gcp_client if gcp_client is not None else _default_gcp_client()
     project_id = project_id or _PROJECT_ID
 
     raw_list: list[dict] = mcp.list_project_resources(
