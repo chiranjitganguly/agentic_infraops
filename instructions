@@ -511,8 +511,8 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d postgres redis
 
   Step 2: Start the stack
 
-  docker compose -f docker/docker-compose.yml up -d
-docker compose -f docker/docker-compose.yml --env-file .env up -d 
+  docker compose -f docker/docker-compose.yml --env-file .env up -d
+
   This starts PostgreSQL, Qdrant, PubSub emulator, LiteLLM, Airflow, Prometheus,
   Grafana, and all MCP servers.
 
@@ -521,76 +521,36 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d
   # Check all containers are running
   docker compose -f docker/docker-compose.yml --env-file .env ps
 
-  # Run migrations
-  python infrastructure/scripts/migrate.py --env local
+  # Run migrations — DATABASE_URL must be set explicitly (script does not read .env)
+  DATABASE_URL=postgresql://infraops:admin@localhost:5432/infraops python infrastructure/scripts/migrate.py
 
   Step 4: Seed the knowledge base
 
-  python infrastructure/scripts/seed_knowledge_base.py \
-    --docs-dir docs/knowledge/ \
-    --qdrant-url http://localhost:6333
+  # Source .env first so LITELLM_MASTER_KEY and other vars are available,
+  # then run the seed script. --knowledge-dir defaults to docs/knowledge/ if omitted.
+  set -a && source .env && set +a
+  python infrastructure/scripts/seed_knowledge_base.py --knowledge-dir docs/knowledge/
 
+  Note: the seed script connects to LiteLLM (port 4000) for embeddings and Qdrant
+  (port 6333) for storage. Both must be running before this step.
+  QDRANT_URL defaults to http://localhost:6333; override via env var if needed.
 
   Step 5: Create a test user
 
-  python infrastructure/scripts/create_user.py \
+  DATABASE_URL=postgresql://infraops:admin@localhost:5432/infraops \
+    python infrastructure/scripts/create_user.py \
     --user-id cg4ai@gmail.com \
     --role developer
   This prints an API key — save it for testing.
+
+  9JpsmTIA8xt8od6L5YQ6-ihUa1_tbOdxhtYotkA9AQI=
   
   Step 6: Run the contract and unit tests
 
   # Contract tests (schema validation — no services needed)
   pytest tests/contract -m "contract" --tb=short
 
-  # Unit tests
-  pytest tests/unit -m "not integration" --tb=short
-
-  Step 7: Verify service UIs are reachable
-
-  ┌─────────┬─────────────────────────────────┐
-  │   Service   │               URL               │
-  ├─────────────┼─────────────────────────────────┤
-  │ Airflow     │ http://localhost:8080           │
-  ├─────────────┼─────────────────────────────────┤
-  │ Grafana     │ http://localhost:3000           │
-  ├─────────────┼─────────────────────────────────┤
-  │ Qdrant      │ http://localhost:6333/dashboard │
-  ├─────────────┼─────────────────────────────────┤
-  │ LiteLLM     │ http://localhost:4000           │
-  ├─────────────┼─────────────────────────────────┤
-  docker compose -f docker/docker-compose.yml up -d
-
-  This starts PostgreSQL, Qdrant, PubSub emulator, LiteLLM, Airflow, Prometheus,
-  Grafana, and all MCP servers.
-
-  Step 3: Wait for services to be healthy, then run DB migrations
-
-  # Check all containers are running
-  docker compose -f docker/docker-compose.yml ps
-
-  # Run migrations
-  python infrastructure/scripts/migrate.py --env local
-
-  Step 4: Seed the knowledge base
-
-  python infrastructure/scripts/seed_knowledge_base.py \
-    --docs-dir docs/knowledge/ \
-    --qdrant-url http://localhost:6333
-
-  Step 5: Create a test user
-
-  python infrastructure/scripts/create_user.py \
-    --user-id dev@yourorg.com \
-    --role developer
-  This prints an API key — save it for testing.
-
-  Step 6: Run the contract and unit tests
-
-  # Contract tests (schema validation — no services needed)
-  pytest tests/contract -m "contract" --tb=short
-
-  # Unit tests
+  # Unit tests (no services needed)
   pytest tests/unit -m "not integration" --tb=short
 
   Step 7: Verify service UIs are reachable
@@ -605,7 +565,6 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d
   │ Qdrant      │ http://localhost:6333/dashboard │
   ├─────────────┼─────────────────────────────────┤
   │ LiteLLM     │ http://localhost:4000           │
-  ├─────────────┼─────────────────────────────────┤
-
+  └─────────────┴─────────────────────────────────┘
 
   docker compose -f docker/docker-compose.yml --env-file .env stop

@@ -59,11 +59,11 @@ docker compose -f docker/docker-compose.yml --env-file .env down -v
 ### Setup Scripts
 
 ```bash
-# Run DB migrations
-python infrastructure/scripts/migrate.py --env local
+# Run DB migrations (DATABASE_URL must be set)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/infraops python infrastructure/scripts/migrate.py
 
 # Seed Qdrant knowledge base from docs/knowledge/
-python infrastructure/scripts/seed_knowledge_base.py --docs-dir docs/knowledge/ --qdrant-url http://localhost:6333
+python infrastructure/scripts/seed_knowledge_base.py --knowledge-dir docs/knowledge/
 
 # Create a test user (prints API key once)
 python infrastructure/scripts/create_user.py --user-id dev@yourorg.com --role developer
