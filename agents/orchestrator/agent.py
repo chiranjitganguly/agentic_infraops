@@ -52,6 +52,7 @@ from skills.intent_classification.classifier import (
     ClassificationResult,
     NormalizedBucketRequest,
     NormalizedEnquiryRequest,
+    NormalizedFAQRequest,
     NormalizedVMRequest,
     NormalizedVPCRequest,
     classify,
@@ -150,6 +151,7 @@ async def route(
     postgres: PostgresClient,
     provisioning_agent: SubAgentClient,
     enquiry_agent: SubAgentClient,
+    faq_agent: SubAgentClient | None = None,
     classifier: ClassifierClient | None = None,
     guardrails: DeveloperGuardrails | None = None,
 ) -> OrchestratorOutput:
@@ -259,6 +261,16 @@ async def route(
             requesting_user=input.requesting_user,
             user_role=input.user_role,
         )
+    elif classification.intent == "faq":
+        faq_url = os.environ.get("FAQ_AGENT_URL", "http://faq-agent:8004")
+        _faq_agent = faq_agent if faq_agent is not None else _A2AClient(faq_url)
+        faq_n = n if isinstance(n, NormalizedFAQRequest) else None
+        sub_result = await _faq_agent.submit(
+            correlation_id=str(input.correlation_id),
+            request_id=str(input.request_id),
+            question=faq_n.question if faq_n else input.raw_input,
+            requesting_user=input.requesting_user,
+        )
     else:
         sub_result = {}
 
@@ -343,6 +355,7 @@ class OrchestratorAgent(BaseAgent):
             "PROVISIONING_AGENT_URL", "http://provisioning-agent:8002"
         )
         enquiry_url = os.environ.get("ENQUIRY_AGENT_URL", "http://enquiry-agent:8003")
+        faq_url = os.environ.get("FAQ_AGENT_URL", "http://faq-agent:8004")
 
         # Set correlation context
         ctx_corr = CorrelationContext(
@@ -356,6 +369,7 @@ class OrchestratorAgent(BaseAgent):
             postgres=_DefaultPostgresClient(),
             provisioning_agent=_A2AClient(provisioning_url),
             enquiry_agent=_A2AClient(enquiry_url),
+            faq_agent=_A2AClient(faq_url),
         )
 
         logger.info(

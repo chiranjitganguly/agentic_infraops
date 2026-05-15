@@ -45,7 +45,7 @@ AIRFLOW__CORE__FERNET_KEY=$(python3 -c "from cryptography.fernet import Fernet; 
 ## 2. Start the Stack
 
 ```bash
-docker compose up -d
+docker compose -f docker/docker-compose.yml --env-file .env up -d
 ```
 
 This starts:
@@ -58,32 +58,32 @@ This starts:
 | `litellm` | 4000 | LiteLLM proxy gateway |
 | `airflow-webserver` | 8080 | Airflow UI |
 | `airflow-scheduler` | — | Airflow scheduler |
-| `orchestrator-agent` | 8100 | Orchestrator A2A agent |
-| `provisioning-agent` | 8101 | Provisioning A2A agent |
-| `enquiry-agent` | 8102 | Enquiry A2A agent |
-| `faq-agent` | 8103 | FAQ A2A agent |
+| `orchestrator-agent` | 8001 | Orchestrator A2A agent |
+| `provisioning-agent` | 8002 | Provisioning A2A agent |
+| `enquiry-agent` | 8003 | Enquiry A2A agent |
+| `faq-agent` | 8004 | FAQ A2A agent |
 | `web-backend` | 8000 | FastAPI web UI backend |
 | `web-frontend` | 3000 | Web UI |
 | `gmail-poller` | — | Gmail inbox polling service |
 | `prometheus` | 9090 | Metrics |
-| `grafana` | 3001 | Dashboards |
+| `grafana` | 3000 | Dashboards |
 
 ## 3. Initialize the Database
 
 ```bash
-docker compose exec postgres psql -U infraops -d infraops -f /docker-entrypoint-initdb.d/schema.sql
+docker compose -f docker/docker-compose.yml exec postgres psql -U infraops -d infraops -f /docker-entrypoint-initdb.d/schema.sql
 ```
 
 Or run the migration script:
 ```bash
-python infrastructure/scripts/migrate.py --env local
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/infraops python infrastructure/scripts/migrate.py
 ```
 
 ## 4. Seed the Knowledge Base
 
 ```bash
 python infrastructure/scripts/seed_knowledge_base.py \
-  --docs-dir docs/knowledge/ \
+  --knowledge-dir docs/knowledge/ \
   --qdrant-url http://localhost:6333
 ```
 
@@ -108,7 +108,7 @@ Expires: 2026-08-08T00:00:00Z
 ```bash
 # Submit a provisioning request
 curl -X POST http://localhost:8000/api/v1/requests \
-  -H "X-API-Key: infraops_<your_key>" \
+  -H "Authorization: Bearer infraops_<your_key>" \
   -H "Content-Type: application/json" \
   -d '{"raw_input": "Create a VM with 4 CPUs in us-central1", "channel": "chatbot"}'
 ```
@@ -125,14 +125,14 @@ Stream live status:
 ```bash
 curl -H "X-API-Key: infraops_<your_key>" \
      -H "Accept: text/event-stream" \
-     http://localhost:8000/api/v1/jobs/<job_id>/stream
+     "http://localhost:8000/api/v1/jobs/<job_id>/stream"
 ```
 
 ## 7. Test the FAQ Flow
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/requests \
-  -H "X-API-Key: infraops_<your_key>" \
+  -H "Authorization: Bearer infraops_<your_key>" \
   -H "Content-Type: application/json" \
   -d '{"raw_input": "What is the best practice for VPC design on GCP?", "channel": "chatbot"}'
 ```
@@ -157,7 +157,7 @@ pytest tests/workflow/ -v
 
 - **Airflow UI**: http://localhost:8080 (admin / admin)
 - **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3001 (admin / admin)
+- **Grafana**: http://localhost:3000 (admin / admin)
 - **Qdrant UI**: http://localhost:6333/dashboard
 - **LiteLLM UI**: http://localhost:4000/ui
 
@@ -165,16 +165,16 @@ pytest tests/workflow/ -v
 
 ```bash
 # View logs for a specific service
-docker compose logs -f orchestrator-agent
+docker compose -f docker/docker-compose.yml --env-file .env logs -f orchestrator-agent
 
 # Restart a single service after code change
-docker compose up -d --no-deps --build orchestrator-agent
+docker compose -f docker/docker-compose.yml --env-file .env up -d --no-deps --build orchestrator-agent
 
 # Stop the stack
-docker compose down
+docker compose -f docker/docker-compose.yml --env-file .env down
 
 # Stop and remove all volumes (reset state)
-docker compose down -v
+docker compose -f docker/docker-compose.yml --env-file .env down -v
 
 # Run a one-off command in a container
 docker compose exec web-backend python -m pytest tests/unit/ -v

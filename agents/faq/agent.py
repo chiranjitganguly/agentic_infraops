@@ -20,6 +20,9 @@ from google.adk.events import Event
 from google.genai import types as genai_types
 
 from contracts.agents.faq import FAQAnsweredOutput, FAQInput, FAQNoResultsOutput, Source
+from contracts.schemas.audit_event import AuditEventType
+from contracts.schemas.faq_query import FAQQueryCreate, RetrievedChunk
+from contracts.shared.audit import emit_audit_event
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
 
@@ -89,6 +92,41 @@ def _generate_answer(question: str, chunks: list[dict]) -> str:
         return "I was unable to generate an answer at this time. Please try again."
 
 
+class _LazyPostgresAuditClient:
+    async def create_audit_event(self, event_data: dict) -> dict:
+        from mcp_servers.postgres.server import create_audit_event
+        return await create_audit_event(event_data)
+
+
+async def _store_faq_query(inp: FAQInput, chunks: list[dict], answer: str, no_results: bool) -> None:
+    try:
+        from mcp_servers.postgres.server import create_faq_query
+        retrieved = [
+            RetrievedChunk(
+                chunk_text=c.get("chunk_text", ""),
+                source_doc=c.get("source_doc", ""),
+                bm25_score=float(c.get("bm25_score", 0.0)),
+                vector_score=float(c.get("vector_score", 0.0)),
+                final_score=float(c.get("final_score", 0.0)),
+                chunk_id=c.get("chunk_id"),
+            )
+            for c in chunks
+        ]
+        sources_cited = list({c.get("source_doc", "") for c in chunks if c.get("source_doc")})
+        query = FAQQueryCreate(
+            correlation_id=inp.correlation_id,
+            raw_question=inp.question,
+            requesting_user=inp.requesting_user,
+            retrieved_chunks=retrieved,
+            generated_answer=answer,
+            sources_cited=[{"source": s} for s in sources_cited],
+            no_results_found=no_results,
+        )
+        await create_faq_query(query.model_dump(mode="json"))
+    except Exception as exc:
+        logger.warning("faq_query_store_failed", error=str(exc))
+
+
 async def handle_faq(inp: FAQInput) -> dict:
     """Core FAQ logic — injectable for testing."""
     now = datetime.now(timezone.utc)
@@ -97,6 +135,16 @@ async def handle_faq(inp: FAQInput) -> dict:
 
     if not chunks:
         logger.info("faq_no_results", question=inp.question[:80])
+        await emit_audit_event(
+            event_type=AuditEventType.faq_answered,
+            actor=inp.requesting_user,
+            agent_name="faq-agent",
+            payload={"answered": False, "source_count": 0},
+            correlation_id=inp.correlation_id,
+            request_id=inp.request_id,
+            postgres=_LazyPostgresAuditClient(),
+        )
+        await _store_faq_query(inp, [], "", no_results=True)
         return FAQNoResultsOutput(
             correlation_id=inp.correlation_id,
             request_id=inp.request_id,
@@ -114,6 +162,17 @@ async def handle_faq(inp: FAQInput) -> dict:
         )
         for c in chunks
     ]
+
+    await emit_audit_event(
+        event_type=AuditEventType.faq_answered,
+        actor=inp.requesting_user,
+        agent_name="faq-agent",
+        payload={"answered": True, "source_count": len(sources)},
+        correlation_id=inp.correlation_id,
+        request_id=inp.request_id,
+        postgres=_LazyPostgresAuditClient(),
+    )
+    await _store_faq_query(inp, chunks, answer, no_results=False)
 
     logger.info("faq_answered", question=inp.question[:80], sources=len(sources))
     return FAQAnsweredOutput(

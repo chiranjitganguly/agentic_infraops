@@ -1,0 +1,230 @@
+---
+# Orchestrator Agent
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: orchestrator-agent
+  description: "Classifies natural language infrastructure requests, enforces guardrails and rate limits, and routes to provisioning, enquiry, or FAQ sub-agents."
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9001"
+  tags:
+    - agent
+    - google-adk
+    - python
+  links:
+    - url: http://localhost:8001
+      title: Local endpoint
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  providesApis:
+    - orchestrator-api
+  dependsOn:
+    - component:provisioning-agent
+    - component:enquiry-agent
+    - component:faq-agent
+    - component:mcp-postgres
+---
+# Provisioning Agent
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: provisioning-agent
+  description: "Validates and queues GCP resource provisioning requests. Publishes PubSub events for Airflow DAG execution."
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9002"
+  tags:
+    - agent
+    - google-adk
+    - python
+  links:
+    - url: http://localhost:8002
+      title: Local endpoint
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  providesApis:
+    - provisioning-api
+  dependsOn:
+    - component:mcp-postgres
+    - component:mcp-pubsub
+    - skill:gcp-compute
+    - skill:gcp-network
+---
+# Enquiry Agent
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: enquiry-agent
+  description: "Handles GCP resource status and list enquiries via the gcp-resource MCP server."
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9003"
+  tags:
+    - agent
+    - google-adk
+    - python
+  links:
+    - url: http://localhost:8003
+      title: Local endpoint
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  providesApis:
+    - enquiry-api
+  dependsOn:
+    - component:mcp-gcp-resource
+    - component:mcp-postgres
+---
+# FAQ Agent
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: faq-agent
+  description: "Answers GCP infrastructure best-practice questions by searching the knowledge base and generating answers via LiteLLM."
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9004"
+  tags:
+    - agent
+    - google-adk
+    - python
+    - rag
+  links:
+    - url: http://localhost:8004
+      title: Local endpoint
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  providesApis:
+    - faq-api
+  dependsOn:
+    - component:mcp-knowledge-base
+    - component:mcp-postgres
+    - component:litellm-gateway
+---
+# Skill: gcp-compute
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-gcp-compute
+  description: "VM provisioning skill with dry-run support and circuit breaker. Implements PLR-001 (dry-run) and PLR-002 (circuit breaker)."
+  tags:
+    - skill
+    - python
+    - gcp
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  partOf: component:provisioning-agent
+---
+# Skill: gcp-network
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-gcp-network
+  description: "VPC and subnet provisioning skill with dry-run support and rollback (ADR-0006)."
+  tags:
+    - skill
+    - python
+    - gcp
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  partOf: component:provisioning-agent
+---
+# Skill: gcp-storage
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-gcp-storage
+  description: "Cloud Storage bucket provisioning skill with dry-run support."
+  tags:
+    - skill
+    - python
+    - gcp
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  partOf: component:provisioning-agent
+---
+# Skill: status-query
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-status-query
+  description: "GCP resource status and list querier. Protocol-injected GcpResourceClient for testability."
+  tags:
+    - skill
+    - python
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  partOf: component:enquiry-agent
+---
+# Skill: intent-classification
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-intent-classification
+  description: "Classifies natural language requests into provision/enquiry/faq intents with confidence score. SC-002: >= 90% accuracy."
+  tags:
+    - skill
+    - python
+    - llm
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  partOf: component:orchestrator-agent
+---
+# Skill: document-retrieval
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-document-retrieval
+  description: "Hybrid BM25+vector search over the GCP knowledge base via Qdrant."
+  tags:
+    - skill
+    - python
+    - rag
+    - qdrant
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: agentic-infraops
+  partOf: component:faq-agent
+---
+# System
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: agentic-infraops
+  description: "Multi-agent, event-driven GCP infrastructure self-service platform."
+  tags:
+    - gcp
+    - infrastructure
+    - self-service
+spec:
+  owner: platform-team

@@ -238,34 +238,34 @@
 
 ### Contract Tests
 
-- [ ] T076 [P] [US4] Write contract test for FAQ Agent A2A in `tests/contract/test_a2a_faq.py` — validates `FAQInput`, `FAQAnsweredOutput` (has non-empty `answer` and `sources`), `FAQNoResultsOutput` schemas
+- [x] T076 [P] [US4] Write contract test for FAQ Agent A2A in `tests/contract/test_a2a_faq.py` — validates `FAQInput`, `FAQAnsweredOutput` (has non-empty `answer` and `sources`), `FAQNoResultsOutput` schemas
 
 ### MCP Servers (US4)
 
-- [ ] T077 [P] [US4] Implement `mcp_servers/knowledge_base/server.py` — MCP server wrapping Qdrant: `search_documents` (hybrid BM25 + dense vector via Qdrant's built-in FastEmbed sparse + dense, RRF fusion, `score_threshold=0.5`), `get_document_by_id`, `index_document`, `get_collection_stats`; embedding model called via LiteLLM gateway
+- [x] T077 [P] [US4] Implement `mcp_servers/knowledge_base/server.py` — MCP server wrapping Qdrant: `search_documents` (hybrid BM25 + dense vector via Qdrant's built-in FastEmbed sparse + dense, RRF fusion, `score_threshold=0.5`), `get_document_by_id`, `index_document`, `get_collection_stats`; embedding model called via LiteLLM gateway
 
 ### Skills (US4)
 
-- [ ] T078 [P] [US4] Implement `skills/document_retrieval/retriever.py` — `retrieve(question: str, top_k: int = 5) -> list[RetrievedChunk]`; calls `knowledge-base-mcp` `search_documents`; returns empty list if no chunks above `score_threshold`; each chunk includes `chunk_text`, `source_doc`, `bm25_score`, `vector_score`, `final_score`
-- [ ] T079 [P] [US4] Implement `skills/document_retrieval/answer_generator.py` — `generate_answer(question: str, chunks: list[RetrievedChunk]) -> FAQAnswerResult`; calls LiteLLM via gateway with retrieved chunks as context; prompt instructs model to cite sources and refuse to answer if chunks are not relevant; returns `answer`, `sources_cited`, `confidence`
+- [x] T078 [P] [US4] Implement `skills/document_retrieval/retriever.py` — `retrieve(question: str, top_k: int = 5) -> list[RetrievedChunk]`; calls `knowledge-base-mcp` `search_documents`; returns empty list if no chunks above `score_threshold`; each chunk includes `chunk_text`, `source_doc`, `bm25_score`, `vector_score`, `final_score`
+- [x] T079 [P] [US4] Implement `skills/document_retrieval/answer_generator.py` — `generate_answer(question: str, chunks: list[RetrievedChunk]) -> FAQAnswerResult`; calls LiteLLM via gateway with retrieved chunks as context; prompt instructs model to cite sources and refuse to answer if chunks are not relevant; returns `answer`, `sources_cited`, `confidence`
 
 ### Agent (US4)
 
-- [ ] T080 [US4] Implement `agents/faq/agent.py` — Google ADK agent; on `POST /tasks` with `FAQInput`: calls `document_retrieval` skill `retrieve`; if empty chunks returns `FAQNoResultsOutput`; calls `answer_generator`; stores `FAQQuery` record via `postgres-mcp` `create_faq_query`; emits `faq_answered` audit event; exposes `/.well-known/agent.json`
-- [ ] T081 [US4] Extend `agents/orchestrator/agent.py` — add `faq` intent routing branch: passes question to FAQ Agent via A2A; returns result immediately
+- [x] T080 [US4] Implement `agents/faq/agent.py` — Google ADK agent; on `POST /tasks` with `FAQInput`: calls `document_retrieval` skill `retrieve`; if empty chunks returns `FAQNoResultsOutput`; calls `answer_generator`; stores `FAQQuery` record via `postgres-mcp` `create_faq_query`; emits `faq_answered` audit event; exposes `/.well-known/agent.json`
+- [x] T081 [US4] Extend `agents/orchestrator/agent.py` — add `faq` intent routing branch: passes question to FAQ Agent via A2A; returns result immediately
 
 ### Web Backend (US4 extension)
 
-- [ ] T082 [US4] Extend `web/backend/routers/requests.py` — handle `faq` intent in `POST /api/v1/requests`: return 200 immediately with `answer` and `sources` (no `job_id`, no SSE)
+- [x] T082 [US4] Extend `web/backend/routers/requests.py` — handle `faq` intent in `POST /api/v1/requests`: return 200 immediately with `answer` and `sources` (no `job_id`, no SSE)
 
 ### Evaluation (US4)
 
-- [ ] T083 [US4] Create `evaluations/datasets/faq_evaluation.jsonl` — 50 Q&A pairs with GCP infrastructure best-practice questions, expected answers, and required source documents; covers VPC design, IAM, storage, compute, networking
-- [ ] T084 [US4] Implement `evaluations/faq/evaluate.py` — runs FAQ agent against `faq_evaluation.jsonl`; checks: answer non-empty, sources non-empty, answer does not contradict source content (hallucination check via LiteLLM judge prompt); reports pass rate; fails if < 80% of answers are grounded
+- [x] T083 [US4] Create `evaluations/datasets/faq_evaluation.jsonl` — 50 Q&A pairs with GCP infrastructure best-practice questions, expected answers, and required source documents; covers VPC design, IAM, storage, compute, networking
+- [x] T084 [US4] Implement `evaluations/faq/evaluate.py` — runs FAQ agent against `faq_evaluation.jsonl`; checks: answer non-empty, sources non-empty, answer does not contradict source content (hallucination check via LiteLLM judge prompt); reports pass rate; fails if < 80% of answers are grounded
 
 ### Integration Tests (US4)
 
-- [ ] T085 [US4] Write integration test `tests/integration/test_faq_flow.py` — tests: question with matching docs (returns cited answer), question with no matching docs (returns `no_results`), validates `FAQQuery` row written to PostgreSQL, validates `faq_answered` audit event
+- [x] T085 [US4] Write integration test `tests/integration/test_faq_flow.py` — tests: question with matching docs (returns cited answer), question with no matching docs (returns `no_results`), validates `FAQQuery` row written to PostgreSQL, validates `faq_answered` audit event
 
 **Checkpoint**: FAQ questions return cited, grounded answers within 60 seconds. All four user stories independently functional.
 
@@ -277,11 +277,11 @@
 
 **Independent Test**: Platform engineer submits "Create a VPC network named my-vpc with subnet 10.0.0.0/24 in us-central1" → confirm → DAG provisions VPC + subnet → succeeded.
 
-- [ ] T086 [P] Extend `mcp_servers/gcp_resource/server.py` — add `create_vpc_network`, `create_subnetwork`, `delete_vpc_network` tools per `contracts/mcp-servers.md`
-- [ ] T087 [P] Implement `skills/gcp_network/provisioner.py` — `create_vpc(params: VPCParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_vpc_network` then `create_subnetwork`; appends each created resource to `rollback_resources` after each successful call (ADR 0006)
-- [ ] T088 [P] Implement `skills/gcp_network/rollback.py` — rollback in reverse order: delete subnet first, then VPC network; ignores 404
-- [ ] T089 Implement `workflows/dags/provision_vpc_dag.py` — same structure as VM/bucket DAGs; `PubSubPullSensor` filters `resource_type == vpc_network`; validates platform_engineer role before execution; same rollback group and Backstage registration hard requirement
-- [ ] T090 Extend `agents/provisioning/agent.py` — add `VPCParameters` handling branch; guardrail check: reject if `user_role == developer` with `GuardrailViolation`
+- [x] T086 [P] Extend `mcp_servers/gcp_resource/server.py` — add `create_vpc_network`, `create_subnetwork`, `delete_vpc_network` tools per `contracts/mcp-servers.md`
+- [x] T087 [P] Implement `skills/gcp_network/provisioner.py` — `create_vpc(params: VPCParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_vpc_network` then `create_subnetwork`; appends each created resource to `rollback_resources` after each successful call (ADR 0006)
+- [x] T088 [P] Implement `skills/gcp_network/rollback.py` — rollback in reverse order: delete subnet first, then VPC network; ignores 404
+- [x] T089 Implement `workflows/dags/provision_vpc_dag.py` — same structure as VM/bucket DAGs; `PubSubPullSensor` filters `resource_type == vpc_network`; validates platform_engineer role before execution; same rollback group and Backstage registration hard requirement
+- [x] T090 Extend `agents/provisioning/agent.py` — add `VPCParameters` handling branch; guardrail check: reject if `user_role == developer` with `GuardrailViolation`
 
 ---
 
@@ -291,25 +291,25 @@
 
 ### Evaluation
 
-- [ ] T091 [P] Create `evaluations/datasets/intent_classification.jsonl` — 100 labelled examples across `provision`, `enquiry`, `faq` intents; includes edge cases (ambiguous, multi-intent, email-style, overly terse)
-- [ ] T092 [P] Implement `evaluations/intent_classification/evaluate.py` — runs `intent_classification` skill against dataset; reports accuracy per intent class; fails if overall accuracy < 90% (SC-002); outputs confusion matrix
-- [ ] T093 [P] Implement `evaluations/intent_classification/evaluate_clarification.py` — runs classifier on ambiguous examples; verifies `confidence < 0.7` triggers clarification outcome; verifies high-confidence examples do not incorrectly trigger clarification
+- [x] T091 [P] Create `evaluations/datasets/intent_classification.jsonl` — 100 labelled examples across `provision`, `enquiry`, `faq` intents; includes edge cases (ambiguous, multi-intent, email-style, overly terse)
+- [x] T092 [P] Implement `evaluations/intent_classification/evaluate.py` — runs `intent_classification` skill against dataset; reports accuracy per intent class; fails if overall accuracy < 90% (SC-002); outputs confusion matrix
+- [x] T093 [P] Implement `evaluations/intent_classification/evaluate_clarification.py` — runs classifier on ambiguous examples; verifies `confidence < 0.7` triggers clarification outcome; verifies high-confidence examples do not incorrectly trigger clarification
 
 ### Observability
 
-- [ ] T094 [P] Add Prometheus metrics instrumentation to all four agents — `intent_classification_duration_seconds`, `a2a_task_duration_seconds`, `a2a_task_total{outcome}` labelled by agent and outcome
-- [ ] T095 [P] Add circuit breaker state metrics to all `mcp_servers/gcp_resource` tools — `circuit_breaker_state{tool}` gauge (0=closed, 1=half-open, 2=open); alert rule in `observability/prometheus/rules.yml` when any circuit opens
-- [ ] T096 [P] Add Backstage catalog entries for all agents and skills — create `docs/backstage/` with `catalog-info.yaml` files for `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent` and all 6 skill packages
+- [x] T094 [P] Add Prometheus metrics instrumentation to all four agents — `intent_classification_duration_seconds`, `a2a_task_duration_seconds`, `a2a_task_total{outcome}` labelled by agent and outcome
+- [x] T095 [P] Add circuit breaker state metrics to all `mcp_servers/gcp_resource` tools — `circuit_breaker_state{tool}` gauge (0=closed, 1=half-open, 2=open); alert rule in `observability/prometheus/rules.yml` when any circuit opens
+- [x] T096 [P] Add Backstage catalog entries for all agents and skills — create `docs/backstage/` with `catalog-info.yaml` files for `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent` and all 6 skill packages
 
 ### Load Testing
 
-- [ ] T097 Write `tests/integration/test_concurrent_load.py` — submits 50 concurrent provisioning requests (mix of VM and bucket) via web API; asserts all requests receive `job_id`; asserts no duplicate resources created (idempotency); asserts system remains responsive (< 30s for status enquiry during load)
+- [x] T097 Write `tests/integration/test_concurrent_load.py` — submits 50 concurrent provisioning requests (mix of VM and bucket) via web API; asserts all requests receive `job_id`; asserts no duplicate resources created (idempotency); asserts system remains responsive (< 30s for status enquiry during load)
 
 ### Documentation
 
-- [ ] T098 [P] Write `docs/runbooks/backstage-outage.md` — runbook for Backstage API outage: how to identify jobs that were rolled back due to Backstage failure, how to manually register resources, how to resubmit after Backstage recovery (required by ADR 0005)
-- [ ] T099 [P] Write `docs/runbooks/circuit-breaker.md` — runbook for open circuit breaker: how to identify which GCP API is failing, how to manually reset the circuit, escalation path
-- [ ] T100 [P] Validate `quickstart.md` end-to-end — run all commands in `quickstart.md` against the Docker Compose stack; fix any discrepancies found
+- [x] T098 [P] Write `docs/runbooks/backstage-outage.md` — runbook for Backstage API outage: how to identify jobs that were rolled back due to Backstage failure, how to manually register resources, how to resubmit after Backstage recovery (required by ADR 0005)
+- [x] T099 [P] Write `docs/runbooks/circuit-breaker.md` — runbook for open circuit breaker: how to identify which GCP API is failing, how to manually reset the circuit, escalation path
+- [x] T100 [P] Validate `quickstart.md` end-to-end — run all commands in `quickstart.md` against the Docker Compose stack; fix any discrepancies found
 
 ---
 
