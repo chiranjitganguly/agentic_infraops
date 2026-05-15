@@ -1,0 +1,100 @@
+{"id": "ic-001", "input": "Create a VM with 4 CPUs in us-central1", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "clear provision request"}
+{"id": "ic-002", "input": "Provision a new bucket called my-data-bucket in us-east1", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "clear provision request"}
+{"id": "ic-003", "input": "Set up a VPC network named prod-network in europe-west1", "expected_intent": "provision", "expected_resource": "vpc_network", "notes": "clear provision request"}
+{"id": "ic-004", "input": "Create an e2-standard-8 VM named web-server-01 in us-central1-a", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "specific machine type"}
+{"id": "ic-005", "input": "Spin up a new GCE instance for the dev team", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "informal provision request"}
+{"id": "ic-006", "input": "Make a new GCS bucket for backups", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "informal provision request"}
+{"id": "ic-007", "input": "Deploy a VM in europe-west1 with 2 CPUs and 8GB RAM", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "deploy language"}
+{"id": "ic-008", "input": "I need a compute instance for running ML training jobs", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "purpose-driven request"}
+{"id": "ic-009", "input": "Create a nearline storage bucket for archival in us-east1", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "storage class specified"}
+{"id": "ic-010", "input": "Launch a new virtual machine called api-server in us-central1", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "launch language"}
+{"id": "ic-011", "input": "I'd like to create a VPC for our staging environment", "expected_intent": "provision", "expected_resource": "vpc_network", "notes": "polite provision request"}
+{"id": "ic-012", "input": "Provision a compute instance with SSD disk in us-central1", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "disk type specified"}
+{"id": "ic-013", "input": "Create a new GCP bucket with versioning enabled", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "feature flag specified"}
+{"id": "ic-014", "input": "Set up a VPC with a subnet in us-central1 10.0.0.0/24", "expected_intent": "provision", "expected_resource": "vpc_network", "notes": "CIDR specified"}
+{"id": "ic-015", "input": "build a vm for testing", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "terse provision"}
+{"id": "ic-016", "input": "new bucket please", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "very terse provision"}
+{"id": "ic-017", "input": "Create VM e2-standard-4 us-east1 app-server-prod", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "shorthand no-frills"}
+{"id": "ic-018", "input": "Provision: compute instance, name=worker-01, region=us-central1, machine=e2-standard-2", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "structured shorthand"}
+{"id": "ic-019", "input": "I need a GCS bucket in europe-west1 for storing logs", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "natural language with purpose"}
+{"id": "ic-020", "input": "Please provision a new VPC network for the production workloads in us-central1", "expected_intent": "provision", "expected_resource": "vpc_network", "notes": "formal provision email style"}
+{"id": "ic-021", "input": "What is the status of vm-web-01?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "clear status enquiry"}
+{"id": "ic-022", "input": "Check if bucket my-data-bucket exists", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "clear enquiry"}
+{"id": "ic-023", "input": "List all VMs in us-central1", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "list enquiry"}
+{"id": "ic-024", "input": "Is the VM named api-server running?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "status question"}
+{"id": "ic-025", "input": "Get the details of bucket prod-backups-2024", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "get details"}
+{"id": "ic-026", "input": "Show me all buckets in the project", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "list all"}
+{"id": "ic-027", "input": "What VMs are currently running in us-east1?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "filtered list"}
+{"id": "ic-028", "input": "Check the status of my provisioning request job-12345", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "job status enquiry"}
+{"id": "ic-029", "input": "Is vpc-prod-network already set up?", "expected_intent": "enquiry", "expected_resource": "vpc_network", "notes": "existence check"}
+{"id": "ic-030", "input": "List all VPCs in this project", "expected_intent": "enquiry", "expected_resource": "vpc_network", "notes": "list VPCs"}
+{"id": "ic-031", "input": "What is the IP range of subnet staging-subnet?", "expected_intent": "enquiry", "expected_resource": "vpc_network", "notes": "property enquiry"}
+{"id": "ic-032", "input": "How many VMs are running in us-central1?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "count enquiry"}
+{"id": "ic-033", "input": "describe vm-worker-03 in zone us-central1-a", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "describe command style"}
+{"id": "ic-034", "input": "status of bucket archive-data-2023", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "terse status"}
+{"id": "ic-035", "input": "show vpc details for prod-vpc", "expected_intent": "enquiry", "expected_resource": "vpc_network", "notes": "informal describe"}
+{"id": "ic-036", "input": "Can you tell me if the VM I requested yesterday is ready?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "contextual status check"}
+{"id": "ic-037", "input": "list all compute instances", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "terse list"}
+{"id": "ic-038", "input": "What is the machine type of server-prod-01?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "property query"}
+{"id": "ic-039", "input": "Are there any VMs in europe-west1?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "existence enquiry"}
+{"id": "ic-040", "input": "Check if there are any existing buckets with the prefix 'logs-'", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "prefix filter enquiry"}
+{"id": "ic-041", "input": "What is the best practice for VPC subnet design in GCP?", "expected_intent": "faq", "expected_resource": null, "notes": "clear FAQ question"}
+{"id": "ic-042", "input": "How do I configure IAM roles to follow least privilege?", "expected_intent": "faq", "expected_resource": null, "notes": "how-to FAQ"}
+{"id": "ic-043", "input": "What is Cloud NAT and when should I use it?", "expected_intent": "faq", "expected_resource": null, "notes": "conceptual FAQ"}
+{"id": "ic-044", "input": "Explain the difference between Nearline and Coldline storage", "expected_intent": "faq", "expected_resource": null, "notes": "explain FAQ"}
+{"id": "ic-045", "input": "What machine type should I pick for a web server?", "expected_intent": "faq", "expected_resource": null, "notes": "recommendation FAQ"}
+{"id": "ic-046", "input": "How does Workload Identity Federation work?", "expected_intent": "faq", "expected_resource": null, "notes": "how-does FAQ"}
+{"id": "ic-047", "input": "What are the GCP naming conventions for storage buckets?", "expected_intent": "faq", "expected_resource": null, "notes": "convention FAQ"}
+{"id": "ic-048", "input": "When should I use VPC peering vs Shared VPC?", "expected_intent": "faq", "expected_resource": null, "notes": "comparison FAQ"}
+{"id": "ic-049", "input": "What is the recommended disk type for database workloads?", "expected_intent": "faq", "expected_resource": null, "notes": "recommendation FAQ"}
+{"id": "ic-050", "input": "How do I enable Private Google Access on a subnet?", "expected_intent": "faq", "expected_resource": null, "notes": "how-to FAQ"}
+{"id": "ic-051", "input": "Why should I avoid basic IAM roles like owner and editor?", "expected_intent": "faq", "expected_resource": null, "notes": "why FAQ"}
+{"id": "ic-052", "input": "What is a Shielded VM and should I enable it?", "expected_intent": "faq", "expected_resource": null, "notes": "conceptual FAQ"}
+{"id": "ic-053", "input": "How do I set up Cloud DNS for internal service discovery?", "expected_intent": "faq", "expected_resource": null, "notes": "setup FAQ"}
+{"id": "ic-054", "input": "Tell me about Cloud Armor DDoS protection", "expected_intent": "faq", "expected_resource": null, "notes": "tell me FAQ"}
+{"id": "ic-055", "input": "What storage class is best for monthly access frequency?", "expected_intent": "faq", "expected_resource": null, "notes": "storage recommendation FAQ"}
+{"id": "ic-056", "input": "Explain VPC flow logs and how to configure them", "expected_intent": "faq", "expected_resource": null, "notes": "explain + configure FAQ"}
+{"id": "ic-057", "input": "What are the best practices for OS Login on Compute Engine?", "expected_intent": "faq", "expected_resource": null, "notes": "best practice FAQ"}
+{"id": "ic-058", "input": "How should I implement break-glass emergency access?", "expected_intent": "faq", "expected_resource": null, "notes": "security FAQ"}
+{"id": "ic-059", "input": "What is CMEK and how does it differ from Google-managed keys?", "expected_intent": "faq", "expected_resource": null, "notes": "comparison FAQ"}
+{"id": "ic-060", "input": "How do I configure lifecycle rules for Cloud Storage?", "expected_intent": "faq", "expected_resource": null, "notes": "configuration FAQ"}
+{"id": "ic-061", "input": "create vm or check if one already exists named worker-01", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "ambiguous: multi-intent, lean provision"}
+{"id": "ic-062", "input": "I need a bucket, also what is the naming limit?", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "mixed provision+faq, provision takes priority"}
+{"id": "ic-063", "input": "setup", "expected_intent": "provision", "expected_resource": null, "notes": "terse ambiguous - lean provision"}
+{"id": "ic-064", "input": "vm", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "single word - likely status check"}
+{"id": "ic-065", "input": "do the thing", "expected_intent": "provision", "expected_resource": null, "notes": "ambiguous - low confidence expected"}
+{"id": "ic-066", "input": "make it faster", "expected_intent": "enquiry", "expected_resource": null, "notes": "ambiguous - low confidence expected"}
+{"id": "ic-067", "input": "I want to create a VM and also list all existing VMs", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "multi-intent: provision wins"}
+{"id": "ic-068", "input": "What is the status and how do I fix it if it's stopped?", "expected_intent": "enquiry", "expected_resource": null, "notes": "ambiguous multi-part"}
+{"id": "ic-069", "input": "...", "expected_intent": "enquiry", "expected_resource": null, "notes": "gibberish - low confidence expected"}
+{"id": "ic-070", "input": "Please advise on the best approach", "expected_intent": "faq", "expected_resource": null, "notes": "vague advisory request - low confidence expected"}
+{"id": "ic-071", "input": "Hello, could you create a new virtual machine in us-central1 for our backend service? We need 4 CPUs and 16GB RAM. The name should be backend-api-prod.", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "email style formal provision"}
+{"id": "ic-072", "input": "Hi team, I'd like to request a new GCS bucket named logs-archive-2024 in europe-west1 with Nearline storage class for our log retention policy.", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "email style with details"}
+{"id": "ic-073", "input": "Dear Platform team, please provision a VPC network named staging-vpc with a subnet 10.10.0.0/24 in us-central1 for our staging environment.", "expected_intent": "provision", "expected_resource": "vpc_network", "notes": "formal email VPC request"}
+{"id": "ic-074", "input": "Hi, I sent a request yesterday to create vm-worker-07 but haven't heard back. Can you check the status?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "email status follow-up"}
+{"id": "ic-075", "input": "Could you let me know if bucket prod-backups-eu exists and has versioning enabled?", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "email property enquiry"}
+{"id": "ic-076", "input": "I have a question about IAM best practices for our GCP organisation. What is the recommended approach for assigning roles at folder vs project level?", "expected_intent": "faq", "expected_resource": null, "notes": "email style FAQ"}
+{"id": "ic-077", "input": "We are planning a multi-region deployment and wanted to understand the VPC subnet design recommendations. Could you help?", "expected_intent": "faq", "expected_resource": null, "notes": "email style FAQ with context"}
+{"id": "ic-078", "input": "CREATE BUCKET my-test-bucket us-central1", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "all caps command style"}
+{"id": "ic-079", "input": "gcloud compute instances create my-vm --zone=us-central1-a --machine-type=e2-standard-4", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "gcloud command as input"}
+{"id": "ic-080", "input": "terraform apply -var 'vm_name=worker-01'", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "terraform command as input"}
+{"id": "ic-081", "input": "Why did my VM provisioning fail?", "expected_intent": "enquiry", "expected_resource": "compute_instance", "notes": "failure investigation enquiry"}
+{"id": "ic-082", "input": "How long does it take to provision a VM?", "expected_intent": "faq", "expected_resource": null, "notes": "process FAQ"}
+{"id": "ic-083", "input": "resize my VM to e2-standard-8", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "modification as provision"}
+{"id": "ic-084", "input": "delete vm worker-01", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "delete as provision-adjacent (out of scope but classifiable)"}
+{"id": "ic-085", "input": "Is Cloud Storage HIPAA compliant?", "expected_intent": "faq", "expected_resource": null, "notes": "compliance FAQ"}
+{"id": "ic-086", "input": "bucket names in GCP", "expected_intent": "faq", "expected_resource": null, "notes": "terse topic query - FAQ"}
+{"id": "ic-087", "input": "show me all resources", "expected_intent": "enquiry", "expected_resource": null, "notes": "broad list enquiry"}
+{"id": "ic-088", "input": "I need a new environment for testing our microservices - VM, bucket, and VPC", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "multi-resource request - ADR-0002 single resource, but intent is provision"}
+{"id": "ic-089", "input": "What regions support preemptible VMs?", "expected_intent": "faq", "expected_resource": null, "notes": "region capability FAQ"}
+{"id": "ic-090", "input": "provision failed - job abc123 - what happened?", "expected_intent": "enquiry", "expected_resource": null, "notes": "failure investigation via job ID"}
+{"id": "ic-091", "input": "new vm 4cpu 16gb us-central1", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "shorthand key-value style"}
+{"id": "ic-092", "input": "get vpc prod-vpc", "expected_intent": "enquiry", "expected_resource": "vpc_network", "notes": "CLI-style get"}
+{"id": "ic-093", "input": "how much does e2-standard-4 cost per month in us-central1?", "expected_intent": "faq", "expected_resource": null, "notes": "cost FAQ"}
+{"id": "ic-094", "input": "I'd like a bucket. Also can you check if vm-old-01 is still running?", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "multi-intent, provision is first explicit request"}
+{"id": "ic-095", "input": "GCP best practices", "expected_intent": "faq", "expected_resource": null, "notes": "topic-only FAQ - low confidence expected"}
+{"id": "ic-096", "input": "create", "expected_intent": "provision", "expected_resource": null, "notes": "single verb - low confidence"}
+{"id": "ic-097", "input": "list", "expected_intent": "enquiry", "expected_resource": null, "notes": "single verb - low confidence"}
+{"id": "ic-098", "input": "Can I create a VM in asia-southeast1?", "expected_intent": "provision", "expected_resource": "compute_instance", "notes": "question-form provision request"}
+{"id": "ic-099", "input": "Please check whether the GCS bucket named reports-q4-2024 in us-central1 has uniform bucket-level access enabled.", "expected_intent": "enquiry", "expected_resource": "storage_bucket", "notes": "email style property check"}
+{"id": "ic-100", "input": "We need a Nearline storage bucket in europe-west1 for disaster recovery purposes, named dr-backup-bucket.", "expected_intent": "provision", "expected_resource": "storage_bucket", "notes": "email style provision with named resource"}
