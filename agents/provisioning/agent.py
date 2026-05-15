@@ -46,6 +46,8 @@ from contracts.agents.provisioning import (
     VPCParameters,
 )
 from contracts.events.pubsub_events import ProvisioningRequestEvent
+from contracts.schemas.audit_event import AuditEventCreate, AuditEventType
+from contracts.shared.audit import emit_audit_event
 from contracts.shared.correlation import (
     CorrelationContext,
     set_correlation_context,
@@ -221,16 +223,17 @@ async def handle_task(
     )
     await pubsub.publish_provisioning_request(event=event.model_dump(mode="json"))
 
-    await postgres.create_audit_event({
-        "event_type": "request_confirmed",
-        "actor": inp.requesting_user,
-        "agent_name": "provisioning-agent",
-        "resource_type": inp.resource_type.value,
-        "resource_name": inp.resource_name,
-        "correlation_id": str(inp.correlation_id),
-        "request_id": str(inp.request_id),
-        "payload": {"job_id": str(job_id)},
-    })
+    await emit_audit_event(
+        event_type=AuditEventType.request_confirmed,
+        actor=inp.requesting_user,
+        agent_name="provisioning-agent",
+        resource_type=inp.resource_type.value,
+        resource_name=inp.resource_name,
+        correlation_id=inp.correlation_id,
+        request_id=inp.request_id,
+        payload={"job_id": str(job_id)},
+        postgres=postgres,
+    )
 
     logger.info("provisioning_job_queued", job_id=str(job_id))
 

@@ -54,6 +54,64 @@ def _error_response(status: int, error_code: str, message: str, details: dict | 
     return JSONResponse(status_code=status, content=body)
 
 
+def _build_routed_response(
+    infra_request_id: uuid.UUID | str,
+    result: dict[str, Any],
+    correlation_id: uuid.UUID,
+) -> JSONResponse:
+    """Translate an outcome=routed orchestrator result into the HTTP response."""
+    sub_result = result.get("sub_agent_result") or {}
+    intent = result.get("intent")
+
+    if intent == "provision":
+        return JSONResponse(
+            status_code=202,
+            content={
+                "infra_request_id": str(infra_request_id),
+                "job_id": sub_result.get("job_id"),
+                "intent": intent,
+                "status": sub_result.get("status", "awaiting_confirmation"),
+                "confirmation_summary": sub_result.get("confirmation_summary"),
+                "expires_at": sub_result.get("expires_at"),
+                "correlation_id": str(correlation_id),
+            },
+        )
+
+    if intent == "enquiry":
+        query_type = sub_result.get("query_type", "single")
+        base: dict[str, Any] = {
+            "infra_request_id": str(infra_request_id),
+            "intent": intent,
+            "query_type": query_type,
+            "status": "answered",
+            "answer": sub_result.get("human_readable_summary") or sub_result.get("answer"),
+            "queried_at": sub_result.get("queried_at"),
+            "correlation_id": str(correlation_id),
+        }
+        if query_type == "list":
+            base["resource_type"] = sub_result.get("resource_type")
+            base["resources"] = sub_result.get("resources", [])
+            base["total_count"] = sub_result.get("total_count", 0)
+        else:
+            base["resource_type"] = sub_result.get("resource_type")
+            base["resource_name"] = sub_result.get("resource_name")
+            base["gcp_status"] = sub_result.get("gcp_status")
+            base["metadata"] = sub_result.get("metadata")
+        return JSONResponse(status_code=200, content=base)
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "infra_request_id": str(infra_request_id),
+            "intent": intent,
+            "status": "answered",
+            "answer": sub_result.get("answer"),
+            "sources": sub_result.get("sources", []),
+            "correlation_id": str(correlation_id),
+        },
+    )
+
+
 async def _call_orchestrator(task_data: dict[str, Any]) -> dict[str, Any]:
     import json as _json
     user_id = task_data.get("requesting_user", "anonymous")
@@ -145,60 +203,7 @@ async def submit_request(body: SubmitRequestBody, request: Request) -> JSONRespo
         return _error_response(400, "VALIDATION_ERROR", result.get("rejection_reason", "Request could not be understood."))
 
     if outcome == "routed":
-        sub_result = result.get("sub_agent_result") or {}
-        intent = result.get("intent")
-
-        if intent == "provision":
-            status = sub_result.get("status", "awaiting_confirmation")
-            if status == "awaiting_confirmation":
-                return JSONResponse(
-                    status_code=202,
-                    content={
-                        "infra_request_id": str(infra_request_id),
-                        "job_id": sub_result.get("job_id"),
-                        "intent": intent,
-                        "status": status,
-                        "confirmation_summary": sub_result.get("confirmation_summary"),
-                        "answer": None,
-                        "sources": [],
-                        "expires_at": sub_result.get("expires_at"),
-                        "correlation_id": str(ctx.correlation_id),
-                    },
-                )
-
-        if intent == "enquiry":
-            query_type = sub_result.get("query_type", "single")
-            base = {
-                "infra_request_id": str(infra_request_id),
-                "intent": intent,
-                "query_type": query_type,
-                "status": "answered",
-                "answer": sub_result.get("human_readable_summary") or sub_result.get("answer"),
-                "queried_at": sub_result.get("queried_at"),
-                "correlation_id": str(ctx.correlation_id),
-            }
-            if query_type == "list":
-                base["resource_type"] = sub_result.get("resource_type")
-                base["resources"] = sub_result.get("resources", [])
-                base["total_count"] = sub_result.get("total_count", 0)
-            else:
-                base["resource_type"] = sub_result.get("resource_type")
-                base["resource_name"] = sub_result.get("resource_name")
-                base["gcp_status"] = sub_result.get("gcp_status")
-                base["metadata"] = sub_result.get("metadata")
-            return JSONResponse(status_code=200, content=base)
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "infra_request_id": str(infra_request_id),
-                "intent": intent,
-                "status": "answered",
-                "answer": sub_result.get("answer"),
-                "sources": sub_result.get("sources", []),
-                "correlation_id": str(ctx.correlation_id),
-            },
-        )
+        return _build_routed_response(infra_request_id, result, ctx.correlation_id)
 
     return _error_response(500, "INTERNAL_ERROR", f"Unexpected orchestrator outcome: {outcome}")
 
@@ -273,55 +278,6 @@ async def clarify_request(
         return _error_response(400, "VALIDATION_ERROR", result.get("rejection_reason", "Request could not be understood."))
 
     if outcome == "routed":
-        sub_result = result.get("sub_agent_result") or {}
-        intent = result.get("intent")
-
-        if intent == "provision":
-            return JSONResponse(
-                status_code=202,
-                content={
-                    "infra_request_id": str(infra_request_id),
-                    "job_id": sub_result.get("job_id"),
-                    "intent": intent,
-                    "status": sub_result.get("status", "awaiting_confirmation"),
-                    "confirmation_summary": sub_result.get("confirmation_summary"),
-                    "expires_at": sub_result.get("expires_at"),
-                    "correlation_id": str(ctx.correlation_id),
-                },
-            )
-
-        if intent == "enquiry":
-            query_type = sub_result.get("query_type", "single")
-            base = {
-                "infra_request_id": str(infra_request_id),
-                "intent": intent,
-                "query_type": query_type,
-                "status": "answered",
-                "answer": sub_result.get("human_readable_summary") or sub_result.get("answer"),
-                "queried_at": sub_result.get("queried_at"),
-                "correlation_id": str(ctx.correlation_id),
-            }
-            if query_type == "list":
-                base["resource_type"] = sub_result.get("resource_type")
-                base["resources"] = sub_result.get("resources", [])
-                base["total_count"] = sub_result.get("total_count", 0)
-            else:
-                base["resource_type"] = sub_result.get("resource_type")
-                base["resource_name"] = sub_result.get("resource_name")
-                base["gcp_status"] = sub_result.get("gcp_status")
-                base["metadata"] = sub_result.get("metadata")
-            return JSONResponse(status_code=200, content=base)
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "infra_request_id": str(infra_request_id),
-                "intent": intent,
-                "status": "answered",
-                "answer": sub_result.get("answer"),
-                "sources": sub_result.get("sources", []),
-                "correlation_id": str(ctx.correlation_id),
-            },
-        )
+        return _build_routed_response(infra_request_id, result, ctx.correlation_id)
 
     return _error_response(500, "INTERNAL_ERROR", f"Unexpected orchestrator outcome: {outcome}")

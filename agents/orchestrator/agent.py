@@ -47,12 +47,13 @@ from contracts.shared.correlation import (
 )
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
-from skills.gcp_compute.guardrails import (
-    validate_developer_guardrails,
-    validate_vpc_guardrail,
-)
+from skills.gcp_compute.guardrails import validate_provisioning_guardrails
 from skills.intent_classification.classifier import (
     ClassificationResult,
+    NormalizedBucketRequest,
+    NormalizedEnquiryRequest,
+    NormalizedVMRequest,
+    NormalizedVPCRequest,
     classify,
 )
 
@@ -188,54 +189,21 @@ async def route(
             clarification_question=question,
         )
 
-    # VPC provisioning is blocked for developers
-    if (
-        classification.intent == "provision"
-        and classification.resource_type == "vpc_network"
-        and input.user_role == UserRoleType.developer
-    ):
-        vpc_guardrail = validate_vpc_guardrail(input.user_role)
-        if not vpc_guardrail.passed:
-            violations = [
-                {
-                    "field": violation.field,
-                    "provided": violation.provided,
-                    "allowed": violation.allowed,
-                }
-                for violation in vpc_guardrail.violations
-            ]
-            return OrchestratorOutput(
-                correlation_id=input.correlation_id,
-                request_id=input.request_id,
-                outcome=Outcome.guardrail_violation,
-                intent=IntentType.provision,
-                confidence=classification.confidence,
-                violations=violations,
-            )
-
-    # Validate developer guardrails for compute_instance provisioning
-    if (
-        classification.intent == "provision"
-        and classification.resource_type == "compute_instance"
-        and input.user_role == UserRoleType.developer
-    ):
-        from contracts.agents.provisioning import VMParameters
-
-        vm_params = VMParameters(machine_type=classification.machine_type or "e2-standard-4")
-        guardrail_result = validate_developer_guardrails(
-            params=vm_params,
-            region=classification.region or "",
+    # Validate developer guardrails for all provisioning resource types
+    if classification.intent == "provision" and input.user_role == UserRoleType.developer:
+        n = classification.normalized
+        guardrail_result = validate_provisioning_guardrails(
+            resource_type=n.resource_type if n else "compute_instance",
+            region=n.region if n and hasattr(n, "region") else "",
+            machine_type=n.machine_type if isinstance(n, NormalizedVMRequest) else None,
+            storage_class=n.storage_class if isinstance(n, NormalizedBucketRequest) else None,
             user_role=input.user_role,
             guardrails=guardrails,
         )
         if not guardrail_result.passed:
             violations = [
-                {
-                    "field": violation.field,
-                    "provided": violation.provided,
-                    "allowed": violation.allowed,
-                }
-                for violation in guardrail_result.violations
+                {"field": v.field, "provided": v.provided, "allowed": v.allowed}
+                for v in guardrail_result.violations
             ]
             return OrchestratorOutput(
                 correlation_id=input.correlation_id,
@@ -263,43 +231,31 @@ async def route(
 
     # Route to sub-agent
     infra_request_id = str(uuid.uuid4())
+    n = classification.normalized
     if classification.intent == "provision":
-        parameters: dict[str, Any] = dict(classification.normalized_params)
-        if classification.machine_type:
-            parameters.setdefault("machine_type", classification.machine_type)
-        if classification.disk_size_gb:
-            parameters.setdefault("disk_size_gb", classification.disk_size_gb)
-        if classification.image_family:
-            parameters.setdefault("image_family", classification.image_family)
-        if classification.image_project:
-            parameters.setdefault("image_project", classification.image_project)
-        if classification.network:
-            parameters.setdefault("network", classification.network)
-        if classification.storage_class:
-            parameters.setdefault("storage_class", classification.storage_class)
         sub_result = await provisioning_agent.submit(
             correlation_id=str(input.correlation_id),
             request_id=str(input.request_id),
             infra_request_id=infra_request_id,
-            resource_type=classification.resource_type or "compute_instance",
-            resource_name=classification.resource_name or "",
-            region=classification.region or "",
-            zone=classification.zone,
-            parameters=parameters,
+            resource_type=n.resource_type if n else "compute_instance",
+            resource_name=n.resource_name if n and hasattr(n, "resource_name") else "",
+            region=n.region if n and hasattr(n, "region") else "",
+            zone=n.zone if isinstance(n, (NormalizedVMRequest, NormalizedEnquiryRequest)) else None,
+            parameters=n.as_parameters() if n and hasattr(n, "as_parameters") else {},
             requesting_user=input.requesting_user,
             user_role=input.user_role.value if hasattr(input.user_role, "value") else str(input.user_role),
         )
     elif classification.intent == "enquiry":
-        query_type = "list" if not classification.resource_name else "single"
+        enq = n if isinstance(n, NormalizedEnquiryRequest) else None
         sub_result = await enquiry_agent.submit(
             correlation_id=str(input.correlation_id),
             request_id=str(input.request_id),
-            query_type=query_type,
-            resource_type=classification.resource_type or "compute_instance",
-            resource_name=classification.resource_name,
-            project_id=classification.project_id or _PROJECT_ID,
-            zone=classification.zone,
-            region=classification.region,
+            query_type=enq.query_type if enq else "single",
+            resource_type=enq.resource_type if enq else "compute_instance",
+            resource_name=enq.resource_name if enq else None,
+            project_id=enq.project_id if enq else _PROJECT_ID,
+            zone=enq.zone if enq else None,
+            region=enq.region if enq else None,
             requesting_user=input.requesting_user,
             user_role=input.user_role,
         )

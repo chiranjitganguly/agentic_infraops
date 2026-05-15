@@ -1,5 +1,4 @@
 import pytest
-from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
@@ -11,7 +10,11 @@ from agents.orchestrator.agent import (
     Outcome,
     route,
 )
-from skills.intent_classification.classifier import ClassificationResult
+from skills.intent_classification.classifier import (
+    ClassificationResult,
+    NormalizedEnquiryRequest,
+    NormalizedVMRequest,
+)
 
 
 CORRELATION_ID = UUID("aaaaaaaa-0000-0000-0000-000000000001")
@@ -47,13 +50,24 @@ class FakeClassifier(ClassifierClient):
         self._resource_type = resource_type
 
     async def classify(self, raw_input: str, channel: str):  # type: ignore[override]
+        if self._intent == "provision":
+            normalized = NormalizedVMRequest(
+                resource_name=self._resource_name,
+                region=self._region,
+                machine_type=self._machine_type,
+            )
+        elif self._intent == "enquiry":
+            normalized = NormalizedEnquiryRequest(
+                resource_type=self._resource_type,
+                resource_name=self._resource_name,
+                query_type="list" if not self._resource_name else "single",
+            )
+        else:
+            normalized = None
         return ClassificationResult(
             intent=self._intent,
             confidence=self._confidence,
-            resource_type=self._resource_type,
-            resource_name=self._resource_name,
-            region=self._region,
-            machine_type=self._machine_type,
+            normalized=normalized,
         )
 
 

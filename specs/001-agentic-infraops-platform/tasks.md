@@ -199,32 +199,32 @@
 
 ### Contract Tests
 
-- [ ] T068 [P] [US3] Write contract test for Enquiry Agent A2A in `tests/contract/test_a2a_enquiry.py` — validates `EnquiryInput` (`query_type` field present, `resource_name` nullable), `EnquiryFoundOutput` (`gcp_status`, typed `metadata` matching one of `VMMetadata | BucketMetadata | VPCMetadata`, `human_readable_summary`, `queried_at`), `EnquiryListOutput` (`resources[]`, `total_count`), `EnquiryNotFoundOutput`, `EnquiryAccessDeniedOutput` schemas
-- [ ] T068a [P] [US3] Write contract test for typed metadata models in `tests/contract/test_resource_metadata.py` — validates `VMMetadata`, `BucketMetadata`, `VPCMetadata`, `ResourceSummary` Pydantic models import and validate cleanly against sample GCP API response fixtures
+- [x] T068 [P] [US3] Write contract test for Enquiry Agent A2A in `tests/contract/test_a2a_enquiry.py` — validates `EnquiryInput` (`query_type` field present, `resource_name` nullable), `EnquiryFoundOutput` (`gcp_status`, typed `metadata` matching one of `VMMetadata | BucketMetadata | VPCMetadata`, `human_readable_summary`, `queried_at`), `EnquiryListOutput` (`resources[]`, `total_count`), `EnquiryNotFoundOutput`, `EnquiryAccessDeniedOutput` schemas
+- [x] T068a [P] [US3] Write contract test for typed metadata models in `tests/contract/test_resource_metadata.py` — validates `VMMetadata`, `BucketMetadata`, `VPCMetadata`, `ResourceSummary` Pydantic models import and validate cleanly against sample GCP API response fixtures
 
 ### MCP Servers (US3 additions)
 
-- [ ] T069 [P] [US3] Extend `mcp_servers/gcp_resource/server.py` — add `get_vpc_status` tool and `list_project_resources` tool; `list_project_resources` returns `[ResourceSummary]` with `resource_name`, `gcp_status`, `zone_or_region`, `key_metadata`, `creation_timestamp`; ensure all status tools wrapped with `@circuit_breaker`
+- [x] T069 [P] [US3] Extend `mcp_servers/gcp_resource/server.py` — add `get_vpc_status` tool and `list_project_resources` tool; `list_project_resources` returns `[ResourceSummary]` with `resource_name`, `gcp_status`, `zone_or_region`, `key_metadata`, `creation_timestamp`; ensure all status tools wrapped with `@circuit_breaker`
 
 ### Skills (US3)
 
-- [ ] T070 [P] [US3] Implement `skills/status_query/querier.py` — two functions: (1) `query_resource_status(resource_type, resource_name, project_id, zone, region) -> ResourceStatus` — calls appropriate `gcp-resource-mcp` status tool, deserialises raw GCP response into typed `VMMetadata | BucketMetadata | VPCMetadata`; (2) `list_resources(resource_type, project_id) -> list[ResourceSummary]` — calls `list_project_resources` MCP tool; both wrapped with `@circuit_breaker`
-- [ ] T071 [P] [US3] Implement `skills/status_query/formatter.py` — `format_status_response(metadata: VMMetadata | BucketMetadata | VPCMetadata, gcp_status: str, resource_type: ResourceType) -> str`; per-type templates: VM → "{name} is {status} in {zone} ({machine_type})"; bucket → "{name}: {storage_class} in {location}, versioning {'on' if versioning_enabled else 'off'}"; VPC → "{name} is {status}, {subnet_count} subnet(s), routing {routing_mode}"; `format_list_response(resources: list[ResourceSummary], resource_type: ResourceType) -> str` → tabular summary
+- [x] T070 [P] [US3] Implement `skills/status_query/querier.py` — two functions: (1) `query_resource_status(resource_type, resource_name, project_id, zone, region) -> ResourceStatus` — calls appropriate `gcp-resource-mcp` status tool, deserialises raw GCP response into typed `VMMetadata | BucketMetadata | VPCMetadata`; (2) `list_resources(resource_type, project_id) -> list[ResourceSummary]` — calls `list_project_resources` MCP tool; both wrapped with `@circuit_breaker`
+- [x] T071 [P] [US3] Implement `skills/status_query/formatter.py` — `format_status_response(metadata: VMMetadata | BucketMetadata | VPCMetadata, gcp_status: str, resource_type: ResourceType) -> str`; per-type templates: VM → "{name} is {status} in {zone} ({machine_type})"; bucket → "{name}: {storage_class} in {location}, versioning {'on' if versioning_enabled else 'off'}"; VPC → "{name} is {status}, {subnet_count} subnet(s), routing {routing_mode}"; `format_list_response(resources: list[ResourceSummary], resource_type: ResourceType) -> str` → tabular summary
 
 ### Agent (US3)
 
-- [ ] T072 [US3] Implement `agents/enquiry/agent.py` — Google ADK agent; on `POST /tasks` with `EnquiryInput`: routes to `query_resource_status` (query_type=single) or `list_resources` (query_type=list); handles `found`, `not_found`, `access_denied`, `listed` outcomes; emits `status_queried` audit event via `postgres-mcp`; exposes `/.well-known/agent.json`
-- [ ] T073 [US3] Extend `agents/orchestrator/agent.py` — add `enquiry` intent routing branch: detect `query_type` from `normalized_params` (`list` when resource_name is absent/null, `single` otherwise); extract `resource_type`, `resource_name`, `project_id`; call Enquiry Agent via A2A; return result immediately (no confirmation flow)
+- [x] T072 [US3] Implement `agents/enquiry/agent.py` — Google ADK agent; on `POST /tasks` with `EnquiryInput`: routes to `query_resource_status` (query_type=single) or `list_resources` (query_type=list); handles `found`, `not_found`, `access_denied`, `listed` outcomes; emits `status_queried` audit event via `postgres-mcp`; exposes `/.well-known/agent.json`
+- [x] T073 [US3] Extend `agents/orchestrator/agent.py` — add `enquiry` intent routing branch: detect `query_type` from `normalized_params` (`list` when resource_name is absent/null, `single` otherwise); extract `resource_type`, `resource_name`, `project_id`; call Enquiry Agent via A2A; return result immediately (no confirmation flow)
 
 ### Web Backend (US3 extension)
 
-- [ ] T074 [US3] Extend `web/backend/routers/requests.py` — handle `enquiry` intent in `POST /api/v1/requests`: return 200 immediately with full structured response (`query_type`, `resource_type`, `gcp_status`, typed `metadata`, `answer`, `queried_at` for single; `resources[]`, `total_count`, `answer`, `queried_at` for list)
-- [ ] T074a [US3] Add `GET /api/v1/resources/{resource_type}/{resource_name}` endpoint to `web/backend/routers/resources.py` — direct GCP status lookup bypassing NL classification; calls `status_query` skill directly; returns typed `ResourceStatus` response; auth required
-- [ ] T074b [US3] Add `GET /api/v1/resources` endpoint — direct project resource listing; calls `list_resources` skill; query params: `resource_type` (required), `project_id` (optional, defaults to env), `limit`, `offset`; returns `ResourceSummary[]`
+- [x] T074 [US3] Extend `web/backend/routers/requests.py` — handle `enquiry` intent in `POST /api/v1/requests`: return 200 immediately with full structured response (`query_type`, `resource_type`, `gcp_status`, typed `metadata`, `answer`, `queried_at` for single; `resources[]`, `total_count`, `answer`, `queried_at` for list)
+- [x] T074a [US3] Add `GET /api/v1/resources/{resource_type}/{resource_name}` endpoint to `web/backend/routers/resources.py` — direct GCP status lookup bypassing NL classification; calls `status_query` skill directly; returns typed `ResourceStatus` response; auth required
+- [x] T074b [US3] Add `GET /api/v1/resources` endpoint — direct project resource listing; calls `list_resources` skill; query params: `resource_type` (required), `project_id` (optional, defaults to env), `limit`, `offset`; returns `ResourceSummary[]`
 
 ### Integration Tests (US3)
 
-- [ ] T075 [US3] Write integration test `tests/integration/test_enquiry_flow.py` — tests: (1) single resource found — validate `gcp_status`, `metadata` fields match resource type schema, `human_readable_summary` non-empty; (2) resource not found → 404-style answer; (3) access denied scenario; (4) list query → `resources[]` non-empty, `total_count` correct; (5) direct `GET /resources/{type}/{name}` → typed metadata; validates all responses within 30-second SLA; validates `status_queried` audit event written to PostgreSQL
+- [x] T075 [US3] Write integration test `tests/integration/test_enquiry_flow.py` — tests: (1) single resource found — validate `gcp_status`, `metadata` fields match resource type schema, `human_readable_summary` non-empty; (2) resource not found → 404-style answer; (3) access denied scenario; (4) list query → `resources[]` non-empty, `total_count` correct; (5) direct `GET /resources/{type}/{name}` → typed metadata; validates all responses within 30-second SLA; validates `status_queried` audit event written to PostgreSQL
 
 **Checkpoint**: "What is the status of vm-123?" returns `gcp_status` + typed metadata within 30 seconds. "List all my VMs" returns a resource list. `GET /api/v1/resources` works independently. User Story 3 fully independently testable.
 

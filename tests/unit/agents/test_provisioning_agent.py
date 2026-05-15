@@ -37,6 +37,7 @@ def expected_idempotency_key():
 def make_postgres(existing_job=None):
     client = MagicMock()
     client.get_provisioning_job_by_idempotency_key = AsyncMock(return_value=existing_job)
+    client.create_infra_request = AsyncMock(return_value={"id": str(INFRA_REQUEST_ID)})
     client.create_provisioning_job = AsyncMock(return_value={
         "id": str(JOB_ID),
         "status": "awaiting_confirmation",

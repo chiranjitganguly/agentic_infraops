@@ -25,7 +25,8 @@ from contracts.agents.enquiry import (
     EnquiryListOutput,
     ResourceType,
 )
-from contracts.schemas.audit_event import AuditEventCreate, AuditEventType
+from contracts.schemas.audit_event import AuditEventType
+from contracts.shared.audit import emit_audit_event
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
 from skills.status_query.formatter import format_list_response, format_status_response
@@ -37,23 +38,24 @@ logger = get_logger("enquiry-agent")
 _PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "")
 
 
-async def _emit_audit_event(inp: EnquiryInput, outcome: str) -> None:
-    try:
+class _LazyPostgresAuditClient:
+    async def create_audit_event(self, event_data: dict) -> dict:
         from mcp_servers.postgres.server import create_audit_event
-        await create_audit_event(
-            AuditEventCreate(
-                event_type=AuditEventType.status_queried,
-                actor=inp.requesting_user,
-                agent_name="enquiry-agent",
-                resource_type=inp.resource_type.value,
-                resource_name=inp.resource_name or f"[list:{inp.resource_type.value}]",
-                payload={"outcome": outcome, "query_type": inp.query_type},
-                correlation_id=inp.correlation_id,
-                request_id=inp.request_id,
-            ).model_dump()
-        )
-    except Exception as exc:
-        logger.warning("audit_event_failed", error=str(exc))
+        return await create_audit_event(event_data)
+
+
+async def _emit_audit_event(inp: EnquiryInput, outcome: str) -> None:
+    await emit_audit_event(
+        event_type=AuditEventType.status_queried,
+        actor=inp.requesting_user,
+        agent_name="enquiry-agent",
+        resource_type=inp.resource_type.value,
+        resource_name=inp.resource_name or f"[list:{inp.resource_type.value}]",
+        payload={"outcome": outcome, "query_type": inp.query_type},
+        correlation_id=inp.correlation_id,
+        request_id=inp.request_id,
+        postgres=_LazyPostgresAuditClient(),
+    )
 
 
 async def handle_enquiry(inp: EnquiryInput) -> dict:

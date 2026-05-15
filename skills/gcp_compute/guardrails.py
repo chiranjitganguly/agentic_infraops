@@ -89,3 +89,61 @@ def validate_vpc_guardrail(user_role: UserRoleType) -> GuardrailResult:
             ],
         )
     return GuardrailResult(passed=True)
+
+
+def validate_provisioning_guardrails(
+    resource_type: str,
+    region: str,
+    user_role: UserRoleType,
+    guardrails: DeveloperGuardrails,
+    machine_type: str | None = None,
+    storage_class: str | None = None,
+) -> GuardrailResult:
+    """Validate any provisioning request against developer guardrails.
+
+    Platform engineers always pass. For developers:
+    - VPC provisioning is unconditionally blocked.
+    - Region must be in the allowed list.
+    - machine_type (compute) or storage_class (bucket) must be in the allowed list.
+    """
+    if user_role == UserRoleType.platform_engineer:
+        return GuardrailResult(passed=True)
+
+    if resource_type == "vpc_network":
+        return GuardrailResult(
+            passed=False,
+            violations=[
+                GuardrailViolation(
+                    field="resource_type",
+                    provided="vpc_network",
+                    allowed=["compute_instance", "storage_bucket"],
+                )
+            ],
+        )
+
+    violations: list[GuardrailViolation] = []
+
+    if region not in guardrails.allowed_regions:
+        violations.append(GuardrailViolation(
+            field="region",
+            provided=region,
+            allowed=guardrails.allowed_regions,
+        ))
+
+    if resource_type == "compute_instance" and machine_type:
+        if machine_type not in guardrails.allowed_machine_types:
+            violations.append(GuardrailViolation(
+                field="machine_type",
+                provided=machine_type,
+                allowed=guardrails.allowed_machine_types,
+            ))
+
+    if resource_type == "storage_bucket" and storage_class:
+        if storage_class not in guardrails.allowed_storage_classes:
+            violations.append(GuardrailViolation(
+                field="storage_class",
+                provided=storage_class,
+                allowed=guardrails.allowed_storage_classes,
+            ))
+
+    return GuardrailResult(passed=not violations, violations=violations)
