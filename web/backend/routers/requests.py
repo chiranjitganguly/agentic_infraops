@@ -55,22 +55,44 @@ def _error_response(status: int, error_code: str, message: str, details: dict | 
 
 
 async def _call_orchestrator(task_data: dict[str, Any]) -> dict[str, Any]:
+    import json as _json
+    user_id = task_data.get("requesting_user", "anonymous")
+    session_id = str(uuid.uuid4())
+
     async with httpx.AsyncClient(timeout=60.0) as client:
+        await client.post(
+            f"{_ORCHESTRATOR_URL}/apps/orchestrator/users/{user_id}/sessions/{session_id}",
+            json={},
+        )
         response = await client.post(
-            f"{_ORCHESTRATOR_URL}/tasks",
+            f"{_ORCHESTRATOR_URL}/run",
             json={
-                "id": str(uuid.uuid4()),
-                "message": {"role": "user", "parts": [{"type": "data", "data": task_data}]},
+                "appName": "orchestrator",
+                "userId": user_id,
+                "sessionId": session_id,
+                "newMessage": {
+                    "role": "user",
+                    "parts": [{"text": _json.dumps(task_data)}],
+                },
             },
         )
         response.raise_for_status()
-        result = response.json()
-        artifacts = result.get("artifacts", [])
-        if artifacts:
-            parts = artifacts[0].get("parts", [])
-            if parts:
-                return parts[0].get("data", {})
-    return result
+        events = response.json()
+
+    # ADK returns a list of events; the orchestrator yields one event with parts[0].text = JSON
+    if isinstance(events, list):
+        for event in reversed(events):
+            content = event.get("content", {})
+            if not content:
+                continue
+            for part in content.get("parts", []):
+                if "text" in part:
+                    try:
+                        return _json.loads(part["text"])
+                    except (_json.JSONDecodeError, TypeError):
+                        pass
+
+    return {}
 
 
 @router.post("/requests")

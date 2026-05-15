@@ -61,6 +61,7 @@ logger = get_logger("provisioning-agent")
 
 class PostgresClient(Protocol):
     async def get_provisioning_job_by_idempotency_key(self, idempotency_key: str) -> dict: ...
+    async def create_infra_request(self, request_data: dict) -> dict: ...
     async def create_provisioning_job(self, job_data: dict) -> dict: ...
     async def update_job_status(self, job_id: str, status: str) -> dict: ...
     async def update_request_status(
@@ -150,8 +151,19 @@ async def handle_task(
         )
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=20)
 
+        # Ensure infra_request row exists (FK requirement)
+        infra_req = await postgres.create_infra_request({
+            "correlation_id": str(inp.correlation_id),
+            "raw_input": inp.resource_name,
+            "channel": "web",
+            "requesting_user": inp.requesting_user,
+            "user_role": inp.user_role.value if hasattr(inp.user_role, "value") else str(inp.user_role),
+        })
+        infra_request_id = infra_req["id"]
+
         job = await postgres.create_provisioning_job({
-            "infra_request_id": str(inp.infra_request_id),
+            "infra_request_id": infra_request_id,
+            "correlation_id": str(inp.correlation_id),
             "idempotency_key": idempotency_key,
             "resource_type": inp.resource_type.value,
             "resource_name": inp.resource_name,
@@ -159,7 +171,7 @@ async def handle_task(
             "zone": inp.zone,
             "parameters": inp.parameters if isinstance(inp.parameters, dict) else inp.parameters.model_dump(),
             "requesting_user": inp.requesting_user,
-            "user_role": inp.user_role.value,
+            "user_role": inp.user_role.value if hasattr(inp.user_role, "value") else str(inp.user_role),
             "status": "awaiting_confirmation",
             "expires_at": expires_at.isoformat(),
         })
@@ -232,6 +244,9 @@ async def handle_task(
 class _DefaultPostgresClient:
     async def get_provisioning_job_by_idempotency_key(self, idempotency_key: str) -> dict:
         return await _pg_server.get_provisioning_job_by_idempotency_key(idempotency_key)  # type: ignore[arg-type]
+
+    async def create_infra_request(self, request_data: dict) -> dict:
+        return await _pg_server.create_infra_request(request_data)  # type: ignore[arg-type]
 
     async def create_provisioning_job(self, job_data: dict) -> dict:
         return await _pg_server.create_provisioning_job(job_data)  # type: ignore[arg-type]

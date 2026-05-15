@@ -441,7 +441,7 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d postgres redis
   Step 7 — Submit a VM creation request
 
   curl -s -X POST http://localhost:8000/api/v1/requests \
-    -H "X-API-Key: <your-api-key>" \
+    -H "X-API-Key: 9JpsmTIA8xt8od6L5YQ6-ihUa1_tbOdxhtYotkA9AQI=" \
     -H "Content-Type: application/json" \
     -d '{"raw_input": "Create a VM named my-test-vm with 4 CPUs in us-central1"}' \
     | jq .
@@ -450,9 +450,11 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d postgres redis
   
   Step 8 — Confirm the provisioning
   
-  curl -s -X POST http://localhost:8000/api/v1/jobs/<job_id>/confirm \
-    -H "X-API-Key: <your-api-key>" \
+  curl -s -X POST http://localhost:8000/api/v1/jobs/a624fca9-2b96-4d6a-906d-691a7731b385/confirm \
+    -H "X-API-Key: 9JpsmTIA8xt8od6L5YQ6-ihUa1_tbOdxhtYotkA9AQI=" \
     | jq .
+
+   a624fca9-2b96-4d6a-906d-691a7731b385 
   
   This publishes a ProvisioningRequestEvent to PubSub. The Airflow DAG's PubSubPullSensor picks it up within ~10 seconds.
   
@@ -568,3 +570,17 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d postgres redis
   └─────────────┴─────────────────────────────────┘
 
   docker compose -f docker/docker-compose.yml --env-file .env stop
+
+  docker compose -f docker/docker-compose.yml --env-file .env up -d --no-deps
+      --build --force-recreate orchestrator-agent
+
+Check job status:
+  curl -s http://localhost:8000/api/v1/jobs/a624fca9-2b96-4d6a-906d-691a7731b385 \
+      -H "X-API-Key: 9JpsmTIA8xt8od6L5YQ6-ihUa1_tbOdxhtYotkA9AQI=" \
+      | python3 -m json.tool
+
+  Confirm the job:
+  curl -s -X POST
+  http://localhost:8000/api/v1/jobs/a624fca9-2b96-4d6a-906d-691a7731b385/confirm \
+      -H "X-API-Key: 9JpsmTIA8xt8od6L5YQ6-ihUa1_tbOdxhtYotkA9AQI=" \
+      | python3 -m json.tool      

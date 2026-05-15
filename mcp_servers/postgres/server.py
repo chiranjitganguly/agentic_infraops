@@ -89,13 +89,14 @@ async def create_provisioning_job(job_data: dict[str, Any]) -> dict[str, Any]:
         row = await conn.fetchrow(
             """
             INSERT INTO provisioning_jobs (
-                infra_request_id, idempotency_key, resource_type, resource_name,
+                infra_request_id, correlation_id, idempotency_key, resource_type, resource_name,
                 region, zone, parameters, requesting_user, user_role, status,
                 dry_run, retry_count, rollback_resources, expires_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
             RETURNING *
             """,
             UUID(job_data["infra_request_id"]),
+            UUID(job_data["correlation_id"]) if job_data.get("correlation_id") else None,
             job_data["idempotency_key"],
             job_data["resource_type"],
             job_data["resource_name"],
@@ -199,11 +200,12 @@ async def create_infra_request(request_data: dict[str, Any]) -> dict[str, Any]:
         row = await conn.fetchrow(
             """
             INSERT INTO infra_requests (
-                raw_input, channel, requesting_user, user_role, status,
-                email_thread_id, email_message_id
-            ) VALUES ($1,$2,$3,$4,'received',$5,$6)
+                correlation_id, raw_input, channel, requesting_user, user_role, status,
+                expires_at, email_thread_id, email_message_id
+            ) VALUES ($1,$2,$3,$4,$5,'received', NOW() + INTERVAL '20 minutes',$6,$7)
             RETURNING *
             """,
+            UUID(request_data["correlation_id"]) if request_data.get("correlation_id") else None,
             request_data["raw_input"],
             request_data["channel"],
             request_data["requesting_user"],

@@ -16,6 +16,7 @@ On each invocation (user message = JSON-serialised OrchestratorInput):
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import uuid
@@ -89,24 +90,57 @@ def _default_guardrails() -> DeveloperGuardrails:
     )
 
 
+def _app_name_from_url(agent_url: str) -> str:
+    """Derive ADK app name from service URL hostname (e.g. http://provisioning-agent:8002 → 'provisioning')."""
+    from urllib.parse import urlparse
+    host = urlparse(agent_url).hostname or ""
+    return host.replace("-agent", "").replace("-", "_")
+
+
 async def _call_sub_agent(agent_url: str, task_data: dict[str, Any]) -> dict[str, Any]:
-    """Send an A2A task to a sub-agent and return the artifact data."""
+    """Call an ADK sub-agent via /run and return the parsed output."""
+    app_name = _app_name_from_url(agent_url)
+    user_id = task_data.get("message", {}).get("role", "orchestrator")
+    session_id = str(uuid.uuid4())
+    payload = task_data.get("message", {}).get("parts", [{}])[0].get("data", task_data)
+
+    headers: dict[str, str] = {}
+    inject_correlation_headers(headers)
+
     async with httpx.AsyncClient(timeout=60.0) as client:
-        headers = {"Content-Type": "application/json"}
-        inject_correlation_headers(headers)
+        await client.post(
+            f"{agent_url}/apps/{app_name}/users/orchestrator/sessions/{session_id}",
+            json={},
+            headers=headers,
+        )
         response = await client.post(
-            f"{agent_url}/tasks",
-            json=task_data,
+            f"{agent_url}/run",
+            json={
+                "appName": app_name,
+                "userId": "orchestrator",
+                "sessionId": session_id,
+                "newMessage": {
+                    "role": "user",
+                    "parts": [{"text": json.dumps(payload)}],
+                },
+            },
             headers=headers,
         )
         response.raise_for_status()
-        result = response.json()
-        artifacts = result.get("artifacts", [])
-        if artifacts:
-            parts = artifacts[0].get("parts", [])
-            if parts:
-                return parts[0].get("data", {})
-    return result
+        events = response.json()
+
+    if isinstance(events, list):
+        for event in reversed(events):
+            content = event.get("content", {})
+            if not content:
+                continue
+            for part in content.get("parts", []):
+                if "text" in part:
+                    try:
+                        return json.loads(part["text"])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+    return {}
 
 
 async def route(
@@ -228,13 +262,32 @@ async def route(
             )
 
     # Route to sub-agent
+    infra_request_id = str(uuid.uuid4())
     if classification.intent == "provision":
+        parameters: dict[str, Any] = dict(classification.normalized_params)
+        if classification.machine_type:
+            parameters.setdefault("machine_type", classification.machine_type)
+        if classification.disk_size_gb:
+            parameters.setdefault("disk_size_gb", classification.disk_size_gb)
+        if classification.image_family:
+            parameters.setdefault("image_family", classification.image_family)
+        if classification.image_project:
+            parameters.setdefault("image_project", classification.image_project)
+        if classification.network:
+            parameters.setdefault("network", classification.network)
+        if classification.storage_class:
+            parameters.setdefault("storage_class", classification.storage_class)
         sub_result = await provisioning_agent.submit(
             correlation_id=str(input.correlation_id),
             request_id=str(input.request_id),
-            classification=classification,
+            infra_request_id=infra_request_id,
+            resource_type=classification.resource_type or "compute_instance",
+            resource_name=classification.resource_name or "",
+            region=classification.region or "",
+            zone=classification.zone,
+            parameters=parameters,
             requesting_user=input.requesting_user,
-            user_role=input.user_role,
+            user_role=input.user_role.value if hasattr(input.user_role, "value") else str(input.user_role),
         )
     elif classification.intent == "enquiry":
         query_type = "list" if not classification.resource_name else "single"
@@ -281,13 +334,17 @@ class _A2AClient:
         self._url = url
 
     async def submit(self, **kwargs: Any) -> dict:
+        serializable = {
+            k: dataclasses.asdict(v) if dataclasses.is_dataclass(v) else v
+            for k, v in kwargs.items()
+        }
         return await _call_sub_agent(
             self._url,
             {
                 "id": str(uuid.uuid4()),
                 "message": {
                     "role": "user",
-                    "parts": [{"type": "data", "data": kwargs}],
+                    "parts": [{"type": "data", "data": serializable}],
                 },
             },
         )
