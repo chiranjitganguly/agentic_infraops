@@ -122,11 +122,13 @@ async def handle_task(
         inp.resource_type.value, inp.resource_name, inp.region
     )
 
+    _TERMINAL_STATUSES = {"cancelled", "failed", "rolled_back", "succeeded", "completed"}
+
     if not inp.confirmed:
         existing = await postgres.get_provisioning_job_by_idempotency_key(
             idempotency_key=idempotency_key
         )
-        if existing:
+        if existing and existing.get("status") not in _TERMINAL_STATUSES:
             logger.info(
                 "provisioning_idempotency_hit",
                 idempotency_key=idempotency_key,
@@ -221,7 +223,14 @@ async def handle_task(
         user_role=inp.user_role,
         published_at=confirmed_at,
     )
-    await pubsub.publish_provisioning_request(event=event.model_dump(mode="json"))
+
+    try:
+        await pubsub.publish_provisioning_request(event=event.model_dump(mode="json"))
+    except Exception as pub_exc:
+        # Roll back job to awaiting_confirmation so the user can retry via confirm
+        logger.error("pubsub_publish_failed_rolling_back", job_id=str(job_id), error=str(pub_exc))
+        await postgres.update_job_status(job_id=str(job_id), status="awaiting_confirmation")
+        raise ValueError(f"Failed to publish provisioning event: {pub_exc}") from pub_exc
 
     await emit_audit_event(
         event_type=AuditEventType.request_confirmed,

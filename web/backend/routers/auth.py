@@ -1,18 +1,78 @@
-"""T055 — /auth router.
+"""Auth router.
 
-GET  /auth/me          — current user info + daily count
+GET  /auth/me          — current user info + daily count (requires valid token)
+POST /auth/login       — email/password → JWT (exempt from auth middleware)
 POST /auth/rotate-key  — generate new API key, invalidate old one, return plaintext once
 """
 from __future__ import annotations
 
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import jwt
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["auth"])
+
+_JWT_ALGORITHM = "HS256"
+_JWT_EXPIRY_HOURS = 8
+
+
+def _jwt_secret() -> str:
+    return os.environ.get("JWT_SECRET", "changeme-replace-in-production")
+
+
+def _error(status: int, code: str, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status,
+        content={
+            "error_code": code,
+            "message": message,
+            "details": {},
+            "correlation_id": None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+@router.post("/auth/login")
+async def login(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        return _error(400, "VALIDATION_ERROR", "Request body must be JSON.")
+
+    email = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "").strip()
+
+    if not email or not password:
+        return _error(400, "VALIDATION_ERROR", "email and password are required.")
+
+    from mcp_servers.postgres import server as pg
+
+    result = await pg.verify_password(user_id=email, password_plaintext=password)
+    if not result.get("valid"):
+        return _error(401, "UNAUTHORIZED", "Invalid email or password.")
+
+    user_id: str = result["user_id"]
+    role: str = result["role"]
+
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "iat": now,
+        "exp": now + timedelta(hours=_JWT_EXPIRY_HOURS),
+    }
+    token = jwt.encode(payload, _jwt_secret(), algorithm=_JWT_ALGORITHM)
+
+    return JSONResponse(
+        status_code=200,
+        content={"token": token, "user_id": user_id, "role": role},
+    )
 
 
 @router.get("/auth/me")

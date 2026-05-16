@@ -27,6 +27,17 @@ _TOPIC_AUDIT_EVENTS = f"projects/{_PROJECT_ID}/topics/infraops.audit.events"
 _publisher: pubsub_v1.PublisherClient | None = None
 
 
+_ALL_TOPICS = [
+    _TOPIC_PROVISIONING_REQUESTS,
+    _TOPIC_PROVISIONING_STATUS,
+    _TOPIC_AUDIT_EVENTS,
+]
+
+_SUBSCRIPTION_MAP = {
+    _TOPIC_PROVISIONING_REQUESTS: f"projects/{_PROJECT_ID}/subscriptions/infraops-provisioning-requests-vm-sub",
+}
+
+
 def _get_publisher() -> pubsub_v1.PublisherClient:
     global _publisher
     if _publisher is None:
@@ -37,7 +48,39 @@ def _get_publisher() -> pubsub_v1.PublisherClient:
     return _publisher
 
 
+def _ensure_topics_exist() -> None:
+    """Create topics and subscriptions in the emulator if they don't exist.
+
+    This is a no-op in production (non-emulator) where topics are pre-provisioned via Terraform.
+    """
+    if not os.environ.get("PUBSUB_EMULATOR_HOST"):
+        return
+    publisher = _get_publisher()
+    from google.api_core.exceptions import AlreadyExists
+    from google.cloud import pubsub_v1 as _ps
+
+    subscriber = _ps.SubscriberClient()
+    for topic_path in _ALL_TOPICS:
+        try:
+            publisher.create_topic(name=topic_path)
+            logger.info("pubsub_topic_created", topic=topic_path)
+        except AlreadyExists:
+            pass
+        except Exception as exc:
+            logger.warning("pubsub_topic_create_failed", topic=topic_path, error=str(exc))
+
+    for topic_path, sub_path in _SUBSCRIPTION_MAP.items():
+        try:
+            subscriber.create_subscription(name=sub_path, topic=topic_path, ack_deadline_seconds=60)
+            logger.info("pubsub_subscription_created", subscription=sub_path)
+        except AlreadyExists:
+            pass
+        except Exception as exc:
+            logger.warning("pubsub_subscription_create_failed", subscription=sub_path, error=str(exc))
+
+
 def _publish(topic_path: str, data: dict[str, Any]) -> str:
+    _ensure_topics_exist()
     publisher = _get_publisher()
     message_bytes = json.dumps(data, default=str).encode("utf-8")
     future = publisher.publish(topic_path, message_bytes)

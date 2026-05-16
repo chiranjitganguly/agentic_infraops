@@ -51,7 +51,7 @@ def _search_documents(question: str, top_k: int) -> list[dict]:
     """Call knowledge-base MCP SSE server via its REST tool endpoint."""
     try:
         resp = httpx.post(
-            f"{_KNOWLEDGE_BASE_URL}/tools/search_documents",
+            f"{_KNOWLEDGE_BASE_URL}/search",
             json={"query": question, "top_k": top_k, "score_threshold": 0.3},
             timeout=15.0,
         )

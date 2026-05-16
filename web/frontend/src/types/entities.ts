@@ -113,6 +113,7 @@ export type ErrorCode =
   | 'VALIDATION_ERROR'
   | 'INTERNAL_ERROR'
   | 'NETWORK_ERROR'
+  | 'CONFIRM_FAILED'
 
 export interface ErrorPayload {
   error_code: ErrorCode

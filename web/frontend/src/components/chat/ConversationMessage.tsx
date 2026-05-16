@@ -16,6 +16,7 @@ interface ConversationMessageProps {
   setPendingInput: (v: string | null) => void
   originalInput: string | null
   onClarificationResponse: (response: SubmitRequestResponse, msgId: string, convId: string) => void
+  onJobConfirmed?: (jobId: string) => void
 }
 
 function routeResponse(
@@ -72,6 +73,7 @@ export function ConversationMessage({
   conversationId,
   setPendingInput,
   originalInput,
+  onJobConfirmed,
 }: ConversationMessageProps) {
   const { updateMessage, setActiveJobId } = useConversationsStore()
 
@@ -91,12 +93,24 @@ export function ConversationMessage({
 
   const handleProvisionConfirm = useCallback(async () => {
     if (!jobId) return
-    await confirmJob(jobId)
-    updateMessage(conversationId, message.id, {
-      confirmation: confirmation ? { ...confirmation, confirmed: true } : null,
-    })
-    setActiveJobId(conversationId, jobId)
-  }, [jobId, conversationId, message.id, confirmation, updateMessage, setActiveJobId])
+    try {
+      await confirmJob(jobId)
+      updateMessage(conversationId, message.id, {
+        confirmation: confirmation ? { ...confirmation, confirmed: true } : null,
+      })
+      setActiveJobId(conversationId, jobId)
+      onJobConfirmed?.(jobId)
+    } catch {
+      updateMessage(conversationId, message.id, {
+        loading: false,
+        error: {
+          error_code: 'CONFIRM_FAILED',
+          message: 'Could not confirm this job — it may have expired. Please submit a new request.',
+          http_status: 409,
+        },
+      })
+    }
+  }, [jobId, conversationId, message.id, confirmation, updateMessage, setActiveJobId, onJobConfirmed])
 
   const handleRephrase = useCallback(async () => {
     if (!jobId) return

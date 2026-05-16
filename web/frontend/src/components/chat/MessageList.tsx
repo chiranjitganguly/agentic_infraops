@@ -7,6 +7,7 @@ interface MessageListProps {
   conversationId: string
   setPendingInput: (v: string | null) => void
   originalInput: string | null
+  onJobConfirmed?: (jobId: string) => void
 }
 
 export function MessageList({
@@ -14,6 +15,7 @@ export function MessageList({
   conversationId,
   setPendingInput,
   originalInput,
+  onJobConfirmed,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -45,6 +47,7 @@ export function MessageList({
           setPendingInput={setPendingInput}
           originalInput={originalInput}
           onClarificationResponse={() => {}}
+          onJobConfirmed={onJobConfirmed}
         />
       ))}
       <div ref={bottomRef} aria-hidden="true" />

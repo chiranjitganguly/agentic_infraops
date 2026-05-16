@@ -47,30 +47,50 @@ mypy agentic_infraops --ignore-missing-imports      # type check
 ### Local Stack
 
 ```bash
-# Start everything
+# Start everything (infraops-init runs automatically: migrations + PubSub topics + default user)
 docker compose -f docker/docker-compose.yml --env-file .env up -d
 
 # View logs for a service
 docker compose -f docker/docker-compose.yml --env-file .env logs -f orchestrator-agent
 
+# View init logs (migrations, PubSub setup, API key printed here on first boot)
+docker compose -f docker/docker-compose.yml --env-file .env logs infraops-init
+
 # Rebuild and restart a single service after code change
 docker compose -f docker/docker-compose.yml --env-file .env up -d --no-deps --build orchestrator-agent
 
-# Stop and reset all state
+# Full reset (drops all data volumes — init will re-run on next up)
 docker compose -f docker/docker-compose.yml --env-file .env down -v
+```
+
+### Default User
+
+The `infraops-init` service creates the default user automatically on first boot.
+
+| Field | Value |
+|-------|-------|
+| User ID | `cg4ai@gmail.com` |
+| Role | `developer` |
+| API Key | Set in `.env` as `VITE_API_KEY` and `web/frontend/.env` |
+
+To create an additional user manually:
+```bash
+DATABASE_URL=postgresql://infraops:admin@localhost:5432/infraops \
+  python infrastructure/scripts/create_user.py --user-id user@example.com --role developer
 ```
 
 ### Setup Scripts
 
 ```bash
-# Run DB migrations (DATABASE_URL must be set)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/infraops python infrastructure/scripts/migrate.py
+# Run the full init manually (migrations + PubSub + user creation)
+DATABASE_URL=postgresql://infraops:admin@localhost:5432/infraops \
+  PUBSUB_EMULATOR_HOST=localhost:8085 \
+  GCP_PROJECT_ID=agentic-infraops \
+  DEFAULT_USER_ID=cg4ai@gmail.com \
+  python infrastructure/scripts/init_system.py
 
 # Seed Qdrant knowledge base from docs/knowledge/
 python infrastructure/scripts/seed_knowledge_base.py --knowledge-dir docs/knowledge/
-
-# Create a test user (prints API key once)
-python infrastructure/scripts/create_user.py --user-id dev@yourorg.com --role developer
 ```
 
 ## Architecture

@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import type { UserState, UserRole } from '@/types/entities'
 import type { GetMeResponse } from '@/types/api'
+import { clearStoredToken } from '@/api/client'
 
 interface UserActions {
   setUser: (payload: GetMeResponse) => void
   incrementDailyCount: () => void
+  logout: () => void
 }
 
 export const useUserStore = create<UserState & UserActions>()((set) => ({
@@ -28,5 +30,16 @@ export const useUserStore = create<UserState & UserActions>()((set) => ({
     set((state) => ({
       daily_provisioning_count: state.daily_provisioning_count + 1,
     }))
+  },
+
+  logout: () => {
+    clearStoredToken()
+    set({
+      user_id: null,
+      role: null,
+      daily_provisioning_count: 0,
+      daily_provisioning_limit: 10,
+      loaded: false,
+    })
   },
 }))

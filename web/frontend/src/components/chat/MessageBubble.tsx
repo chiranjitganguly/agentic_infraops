@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Message } from '@/types/entities'
 import { LoadingIndicator } from '@/components/shared/LoadingIndicator'
 import { ErrorMessage } from '@/components/shared/ErrorMessage'
+import { JobStatusTimeline } from '@/components/shared/JobStatusTimeline'
 
 interface MessageBubbleProps {
   message: Message
@@ -130,48 +131,6 @@ function StatusBadge({ status }: { status: string }) {
 // ---------------------------------------------------------------------------
 // Job status list for provisioning (Phase 4 SSE updates render here)
 // ---------------------------------------------------------------------------
-
-function JobStatusList({ message }: { message: Message }) {
-  if (message.job_statuses.length === 0 && !message.confirmation) return null
-
-  const statuses = message.job_statuses
-
-  return (
-    <div className="space-y-1">
-      {statuses.map((update, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
-          <JobStatusIcon status={update.status} />
-          <span className="font-mono text-slate-600 dark:text-slate-300">{update.status}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function JobStatusIcon({ status }: { status: string }) {
-  if (/succeeded|completed/.test(status)) {
-    return (
-      <svg className="h-3.5 w-3.5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    )
-  }
-  if (/failed|rollback/.test(status)) {
-    return (
-      <svg className="h-3.5 w-3.5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-      </svg>
-    )
-  }
-  return (
-    <svg className="h-3.5 w-3.5 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-      <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" className="opacity-75" />
-    </svg>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // MessageBubble (T026 — outer shell + routing T030/T031/T032)
 // ---------------------------------------------------------------------------
 
@@ -247,32 +206,15 @@ export function MessageBubble({ message, confirmationSlot, clarificationSlot, ss
           </div>
         )}
 
-        {/* Provisioning SSE job status list (grows as stream events arrive) */}
+        {/* Provisioning status timeline — shown from the moment the user confirms */}
         {!message.loading && !message.error && message.intent === 'provision' && message.confirmation?.confirmed && (
-          <div className="rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3 dark:bg-slate-800 space-y-2">
-            <JobStatusList message={message} />
-            {sseState === 'reconnecting' && (
-              <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400" aria-live="polite">
-                <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-                  <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" className="opacity-75" />
-                </svg>
-                Reconnecting…
-              </p>
-            )}
-            {sseState === 'failed' && (
-              <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400" role="alert">
-                <span>Status stream lost.</span>
-                {onSseRetry && (
-                  <button
-                    onClick={onSseRetry}
-                    className="underline hover:no-underline focus:outline-none focus:ring-1 focus:ring-red-400 rounded"
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-4 dark:bg-slate-800">
+            <JobStatusTimeline
+              jobId={message.confirmation.job_id ?? null}
+              jobStatuses={message.job_statuses}
+              sseState={sseState ?? 'idle'}
+              onRetry={onSseRetry}
+            />
           </div>
         )}
 

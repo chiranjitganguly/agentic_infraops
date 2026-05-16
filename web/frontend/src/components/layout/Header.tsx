@@ -5,9 +5,15 @@ interface HeaderProps {
   themeToggleSlot?: React.ReactNode
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  developer: 'Developer',
+  platform_engineer: 'Platform Engineer',
+}
+
 export function Header({ onSidebarToggle, themeToggleSlot }: HeaderProps) {
   const { user_id, role, daily_provisioning_count, daily_provisioning_limit, loaded } =
     useUserStore()
+  const logout = useUserStore((s) => s.logout)
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-slate-700 dark:bg-slate-900">
@@ -40,7 +46,7 @@ export function Header({ onSidebarToggle, themeToggleSlot }: HeaderProps) {
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {loaded && user_id && (
           <>
             <span className="hidden text-xs text-slate-500 dark:text-slate-400 sm:inline">
@@ -48,7 +54,7 @@ export function Header({ onSidebarToggle, themeToggleSlot }: HeaderProps) {
             </span>
             {role && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {role}
+                {ROLE_LABELS[role] ?? role}
               </span>
             )}
             {role === 'developer' && (
@@ -59,6 +65,13 @@ export function Header({ onSidebarToggle, themeToggleSlot }: HeaderProps) {
                 {daily_provisioning_count}&nbsp;/&nbsp;{daily_provisioning_limit} today
               </span>
             )}
+            <button
+              onClick={logout}
+              className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              aria-label="Sign out"
+            >
+              Sign out
+            </button>
           </>
         )}
 

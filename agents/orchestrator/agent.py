@@ -164,7 +164,7 @@ async def route(
         input.raw_input, input.channel
     )
 
-    if classification.confidence < 0.7:
+    if classification.confidence < 0.55:
         if input.channel == ChannelType.email:
             return OrchestratorOutput(
                 correlation_id=input.correlation_id,
@@ -235,12 +235,35 @@ async def route(
     infra_request_id = str(uuid.uuid4())
     n = classification.normalized
     if classification.intent == "provision":
+        missing: list[str] = []
+        resource_name = (n.resource_name if n and hasattr(n, "resource_name") else "") or ""
+        resource_type = n.resource_type if n else "compute_instance"
+        if not resource_name:
+            missing.append("a name for the resource (e.g. 'my-vm-1')")
+        if isinstance(n, NormalizedVMRequest) and not n.machine_type:
+            missing.append("the machine type (e.g. 'e2-standard-2' for 2 vCPU / 8 GB)")
+        if isinstance(n, NormalizedVMRequest) and not n.region:
+            missing.append("the region (e.g. 'us-central1')")
+        if missing:
+            question = (
+                f"To provision a {resource_type.replace('_', ' ')}, I still need: "
+                + ", ".join(missing)
+                + ". Could you provide these details?"
+            )
+            return OrchestratorOutput(
+                correlation_id=input.correlation_id,
+                request_id=input.request_id,
+                outcome=Outcome.clarification_needed,
+                intent=IntentType.provision,
+                confidence=classification.confidence,
+                clarification_question=question,
+            )
         sub_result = await provisioning_agent.submit(
             correlation_id=str(input.correlation_id),
             request_id=str(input.request_id),
             infra_request_id=infra_request_id,
-            resource_type=n.resource_type if n else "compute_instance",
-            resource_name=n.resource_name if n and hasattr(n, "resource_name") else "",
+            resource_type=resource_type,
+            resource_name=resource_name,
             region=n.region if n and hasattr(n, "region") else "",
             zone=n.zone if isinstance(n, (NormalizedVMRequest, NormalizedEnquiryRequest)) else None,
             parameters=n.as_parameters() if n and hasattr(n, "as_parameters") else {},
@@ -255,7 +278,7 @@ async def route(
             query_type=enq.query_type if enq else "single",
             resource_type=enq.resource_type if enq else "compute_instance",
             resource_name=enq.resource_name if enq else None,
-            project_id=enq.project_id if enq else _PROJECT_ID,
+            project_id=(enq.project_id if enq else None) or _PROJECT_ID or "default",
             zone=enq.zone if enq else None,
             region=enq.region if enq else None,
             requesting_user=input.requesting_user,

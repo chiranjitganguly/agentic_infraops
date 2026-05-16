@@ -7,7 +7,7 @@ name = "provisioning-agent"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "google-adk>=0.1.0",
+    "google-adk>=1.0.0",
     "pydantic>=2.0.0",
     "structlog>=24.0.0",
     "prometheus-client>=0.20.0",
@@ -24,4 +24,4 @@ dependencies = [
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.4.0", "mypy>=1.10.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["agents/provisioning"]

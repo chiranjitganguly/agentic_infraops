@@ -54,6 +54,22 @@ def _error_response(status: int, error_code: str, message: str, details: dict | 
     return JSONResponse(status_code=status, content=body)
 
 
+_INTENT_AGENT_MAP = {
+    "provision": "provisioning_agent",
+    "enquiry": "enquiry_agent",
+    "faq": "faq_agent",
+}
+
+
+def _build_trace(intent: str | None, sub_result: dict[str, Any]) -> list[dict[str, Any]]:
+    sub_agent = _INTENT_AGENT_MAP.get(intent or "", "unknown_agent")
+    sub_status = "completed" if not sub_result.get("error") else "failed"
+    return [
+        {"agent_name": "orchestrator_agent", "role": "router", "status": "completed", "duration_ms": None},
+        {"agent_name": sub_agent, "role": "executor", "status": sub_status, "duration_ms": None},
+    ]
+
+
 def _build_routed_response(
     infra_request_id: uuid.UUID | str,
     result: dict[str, Any],
@@ -62,6 +78,7 @@ def _build_routed_response(
     """Translate an outcome=routed orchestrator result into the HTTP response."""
     sub_result = result.get("sub_agent_result") or {}
     intent = result.get("intent")
+    trace = _build_trace(intent, sub_result)
 
     if intent == "provision":
         return JSONResponse(
@@ -74,6 +91,7 @@ def _build_routed_response(
                 "confirmation_summary": sub_result.get("confirmation_summary"),
                 "expires_at": sub_result.get("expires_at"),
                 "correlation_id": str(correlation_id),
+                "trace": trace,
             },
         )
 
@@ -87,6 +105,7 @@ def _build_routed_response(
             "answer": sub_result.get("human_readable_summary") or sub_result.get("answer"),
             "queried_at": sub_result.get("queried_at"),
             "correlation_id": str(correlation_id),
+            "trace": trace,
         }
         if query_type == "list":
             base["resource_type"] = sub_result.get("resource_type")
@@ -108,6 +127,7 @@ def _build_routed_response(
             "answer": sub_result.get("answer"),
             "sources": sub_result.get("sources", []),
             "correlation_id": str(correlation_id),
+            "trace": trace,
         },
     )
 

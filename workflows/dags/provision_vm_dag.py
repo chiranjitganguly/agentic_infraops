@@ -49,21 +49,54 @@ def _update_job_status_sync(
     error_message: str | None = None,
     rollback_resources: list | None = None,
 ) -> None:
-    import asyncio
+    import json as _json
+    import os
 
-    from mcp_servers.postgres import server as pg
+    import psycopg2
 
-    async def _run() -> None:
-        await pg.update_job_status(
-            job_id=job_id,
-            status=status,
-            retry_count=retry_count,
-            gcp_resource_id=gcp_resource_id,
-            error_message=error_message,
-            rollback_resources=rollback_resources,
-        )
+    db_url = os.environ["DATABASE_URL"]
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE provisioning_jobs SET
+                    status = %s,
+                    retry_count = COALESCE(%s, retry_count),
+                    gcp_resource_id = COALESCE(%s, gcp_resource_id),
+                    error_message = COALESCE(%s, error_message),
+                    rollback_resources = COALESCE(%s::jsonb, rollback_resources),
+                    updated_at = NOW()
+                WHERE id = %s::uuid
+                """,
+                (
+                    status,
+                    retry_count,
+                    gcp_resource_id,
+                    error_message,
+                    _json.dumps(rollback_resources) if rollback_resources is not None else None,
+                    job_id,
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
-    asyncio.run(_run())
+
+def _get_compute():
+    from googleapiclient import discovery
+    return discovery.build("compute", "v1")
+
+
+def _wait_for_zone_operation(compute, project_id: str, zone: str, operation_name: str) -> None:
+    import time
+    while True:
+        result = compute.zoneOperations().get(project=project_id, zone=zone, operation=operation_name).execute()
+        if result["status"] == "DONE":
+            if "error" in result:
+                raise RuntimeError(f"GCP operation failed: {result['error']}")
+            return
+        time.sleep(2)
 
 
 def task_update_in_progress(**context: object) -> None:
@@ -94,20 +127,6 @@ def task_dry_run_validate(**context: object) -> None:
     params = data.get("parameters", {})
 
     async def _run() -> None:
-        from mcp_servers.gcp_resource import server as gcp_server
-        from mcp_servers.postgres import server as pg_server
-
-        class _GcpClient:
-            async def create_vm(self, **kwargs: object) -> dict:
-                return gcp_server.create_vm(**kwargs)  # type: ignore[arg-type]
-
-            async def delete_vm(self, **kwargs: object) -> dict:
-                return gcp_server.delete_vm(**kwargs)  # type: ignore[arg-type]
-
-        class _PgClient:
-            async def update_job_status(self, job_id: uuid.UUID, rollback_resources: list) -> None:
-                await pg_server.update_job_status(job_id=str(job_id), rollback_resources=rollback_resources)  # type: ignore[arg-type]
-
         vm_params = VMParameters(
             machine_type=params.get("machine_type", "e2-standard-4"),
             disk_size_gb=int(params.get("disk_size_gb", 50)),
@@ -117,6 +136,7 @@ def task_dry_run_validate(**context: object) -> None:
             tags=params.get("tags", []),
         )
 
+        # dry_run=True returns immediately without calling gcp_client or postgres_client
         result = await create_vm(
             params=vm_params,
             region=data["region"],
@@ -125,8 +145,8 @@ def task_dry_run_validate(**context: object) -> None:
             project_id=_PROJECT_ID,
             job_id=uuid.UUID(data["job_id"]),
             dry_run=True,
-            gcp_client=_GcpClient(),  # type: ignore[arg-type]
-            postgres_client=_PgClient(),  # type: ignore[arg-type]
+            gcp_client=None,  # type: ignore[arg-type]
+            postgres_client=None,  # type: ignore[arg-type]
         )
 
         if not result.success:
@@ -152,19 +172,62 @@ def task_provision_vm(**context: object) -> None:
     params = data.get("parameters", {})
 
     async def _run() -> str | None:
-        from mcp_servers.gcp_resource import server as gcp_server
-        from mcp_servers.postgres import server as pg_server
+        import json as _json
+
+        import psycopg2
 
         class _GcpClient:
-            async def create_vm(self, **kwargs: object) -> dict:
-                return gcp_server.create_vm(**kwargs)  # type: ignore[arg-type]
+            async def create_vm(self, **kwargs) -> dict:
+                import time
+                compute = _get_compute()
+                project_id = kwargs["project_id"]
+                zone = kwargs["zone"]
+                instance_name = kwargs["instance_name"]
+                machine_type = kwargs.get("machine_type", "e2-standard-4")
+                disk_size_gb = kwargs.get("disk_size_gb", 50)
+                image_family = kwargs.get("image_family", "debian-12")
+                image_project = kwargs.get("image_project", "debian-cloud")
+                network = kwargs.get("network", "default")
+                tags = kwargs.get("tags") or []
 
-            async def delete_vm(self, **kwargs: object) -> dict:
-                return gcp_server.delete_vm(**kwargs)  # type: ignore[arg-type]
+                instance_body = {
+                    "name": instance_name,
+                    "machineType": f"zones/{zone}/machineTypes/{machine_type}",
+                    "disks": [{
+                        "boot": True,
+                        "autoDelete": True,
+                        "initializeParams": {
+                            "sourceImage": f"projects/{image_project}/global/images/family/{image_family}",
+                            "diskSizeGb": str(disk_size_gb),
+                        },
+                    }],
+                    "networkInterfaces": [{"network": f"global/networks/{network}"}],
+                    "tags": {"items": tags},
+                }
+
+                operation = compute.instances().insert(project=project_id, zone=zone, body=instance_body).execute()
+                _wait_for_zone_operation(compute, project_id, zone, operation["name"])
+                instance = compute.instances().get(project=project_id, zone=zone, instance=instance_name).execute()
+                resource_id = str(instance.get("id", ""))
+                log.info("create_vm_succeeded instance_name=%s resource_id=%s", instance_name, resource_id)
+                return {"resource_id": resource_id, "status": "RUNNING"}
+
+            async def delete_vm(self, **kwargs) -> dict:
+                return {"status": "SKIPPED"}
 
         class _PgClient:
             async def update_job_status(self, job_id: uuid.UUID, rollback_resources: list) -> None:
-                await pg_server.update_job_status(job_id=str(job_id), rollback_resources=rollback_resources)  # type: ignore[arg-type]
+                db_url = os.environ["DATABASE_URL"]
+                conn = psycopg2.connect(db_url)
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE provisioning_jobs SET rollback_resources = %s::jsonb, updated_at = NOW() WHERE id = %s::uuid",
+                            (_json.dumps(rollback_resources), str(job_id)),
+                        )
+                    conn.commit()
+                finally:
+                    conn.close()
 
         vm_params = VMParameters(
             machine_type=params.get("machine_type", "e2-standard-4"),
@@ -198,7 +261,7 @@ def task_provision_vm(**context: object) -> None:
 
 
 def task_register_backstage(**context: object) -> None:
-    import asyncio
+    import httpx
 
     ti: TaskInstance = context["ti"]
     data = ti.xcom_pull(task_ids="update_in_progress", key="job_data")
@@ -208,34 +271,50 @@ def task_register_backstage(**context: object) -> None:
 
     gcp_resource_id = ti.xcom_pull(task_ids="provision_vm", key="gcp_resource_id")
 
-    async def _run() -> None:
-        from mcp_servers.backstage import server as bs_server
+    backstage_url = os.environ.get("BACKSTAGE_API_URL", "http://backstage:7007/api")
+    backstage_token = os.environ.get("BACKSTAGE_API_TOKEN", "")
 
-        await bs_server.register_entity(
-            kind="Resource",
-            name=data["resource_name"],
-            namespace="default",
-            metadata={
-                "description": f"GCP compute_instance provisioned via InfraOps platform",
-                "labels": {
-                    "gcp-region": data["region"],
-                    "gcp-project": _PROJECT_ID,
-                    "provisioned-by": data["requesting_user"],
-                    "provisioning-job-id": data["job_id"],
-                },
-                "annotations": {
-                    "infraops/provisioned-at": datetime.now(timezone.utc).isoformat(),
-                    "infraops/idempotency-key": data.get("idempotency_key", ""),
-                },
+    entity_body = {
+        "apiVersion": "backstage.io/v1alpha1",
+        "kind": "Resource",
+        "metadata": {
+            "name": data["resource_name"],
+            "namespace": "default",
+            "description": "GCP compute_instance provisioned via InfraOps platform",
+            "labels": {
+                "gcp-region": data["region"],
+                "gcp-project": _PROJECT_ID,
+                "provisioned-by": data["requesting_user"],
+                "provisioning-job-id": data["job_id"],
             },
-            spec={
-                "type": "gcp-compute-instance",
-                "owner": data["requesting_user"],
-                "lifecycle": "production",
+            "annotations": {
+                "infraops/provisioned-at": datetime.now(timezone.utc).isoformat(),
+                "infraops/idempotency-key": data.get("idempotency_key", ""),
             },
-        )
+        },
+        "spec": {
+            "type": "gcp-compute-instance",
+            "owner": data["requesting_user"],
+            "lifecycle": "production",
+        },
+    }
 
-    asyncio.run(_run())
+    headers = {"Content-Type": "application/json"}
+    if backstage_token:
+        headers["Authorization"] = f"Bearer {backstage_token}"
+
+    try:
+        with httpx.Client(timeout=30) as client:
+            response = client.post(
+                f"{backstage_url}/catalog/entities",
+                json=entity_body,
+                headers=headers,
+            )
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        log.warning("backstage_registration_failed job_id=%s error=%s", data["job_id"], exc)
+        raise RuntimeError(f"Backstage registration failed: {exc}") from exc
+
     log.info("backstage_registered job_id=%s resource=%s", data["job_id"], data["resource_name"])
 
 
@@ -258,6 +337,7 @@ def task_update_succeeded(**context: object) -> None:
 
 def task_rollback_vm(**context: object) -> None:
     import asyncio
+    import json as _json
 
     from contracts.schemas.provisioning_job import RollbackResource
     from skills.gcp_compute.rollback import rollback_vm
@@ -273,11 +353,20 @@ def task_rollback_vm(**context: object) -> None:
     resources = [RollbackResource(**r) for r in rollback_resources_raw]
 
     async def _run() -> None:
-        from mcp_servers.gcp_resource import server as gcp_server
-
         class _GcpClient:
             async def delete_vm(self, project_id: str, zone: str, instance_name: str) -> dict:
-                return gcp_server.delete_vm(project_id=project_id, zone=zone, instance_name=instance_name)  # type: ignore[arg-type]
+                from googleapiclient.errors import HttpError
+                compute = _get_compute()
+                try:
+                    operation = compute.instances().delete(project=project_id, zone=zone, instance=instance_name).execute()
+                    _wait_for_zone_operation(compute, project_id, zone, operation["name"])
+                    log.info("delete_vm_succeeded instance_name=%s", instance_name)
+                    return {"status": "DELETED"}
+                except HttpError as exc:
+                    if exc.resp.status == 404:
+                        log.info("delete_vm_not_found_ignored instance_name=%s", instance_name)
+                        return {"status": "NOT_FOUND"}
+                    raise
 
         result = await rollback_vm(
             rollback_resources=resources,
@@ -327,7 +416,9 @@ with DAG(
         max_messages=1,
         ack_messages=True,
         messages_callback=lambda messages, context, **kw: [
-            m for m in messages if json.loads(m.get("data", "{}")).get("resource_type") == "compute_instance"
+            {"data": m.message.data.decode("utf-8")}
+            for m in messages
+            if json.loads(m.message.data.decode("utf-8")).get("resource_type") == "compute_instance"
         ],
         poke_interval=10,
         timeout=3600,
@@ -372,7 +463,7 @@ with DAG(
     update_failed = PythonOperator(
         task_id="update_failed",
         python_callable=task_update_failed,
-        trigger_rule=TriggerRule.ONE_FAILED,
+        trigger_rule=TriggerRule.ALL_DONE,
     )
 
     (

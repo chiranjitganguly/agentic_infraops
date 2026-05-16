@@ -279,6 +279,25 @@ async def get_user_role(user_id: str) -> dict[str, Any]:
     return _row_to_dict(row)
 
 
+async def verify_password(user_id: str, password_plaintext: str) -> dict[str, Any]:
+    """Verify a plaintext password against the stored bcrypt password_hash.
+
+    Returns {"valid": True, "user_id": ..., "role": ...} on success,
+    {"valid": False} on failure.
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT user_id, role, password_hash FROM user_roles WHERE user_id = $1",
+            user_id,
+        )
+    if row is None or not row["password_hash"]:
+        return {"valid": False}
+    if bcrypt.checkpw(password_plaintext.encode(), row["password_hash"].encode()):
+        return {"valid": True, "user_id": row["user_id"], "role": row["role"]}
+    return {"valid": False}
+
+
 @mcp.tool()
 async def verify_api_key(user_id: str, api_key_plaintext: str) -> dict[str, Any]:
     """bcrypt-verify plaintext key against stored hash and check expiry.

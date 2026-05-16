@@ -29,7 +29,7 @@ export function openJobStream(
     try {
       response = await fetch(`${BASE_URL}/jobs/${jobId}/stream`, {
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
+          'X-API-Key': API_KEY,
           Accept: 'text/event-stream',
           'Cache-Control': 'no-cache',
         },

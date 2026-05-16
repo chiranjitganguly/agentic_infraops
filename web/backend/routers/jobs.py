@@ -81,6 +81,11 @@ async def confirm_job(job_id: uuid.UUID, request: Request) -> JSONResponse:
     import json as _json
     from urllib.parse import urlparse
 
+    # parameters is returned as a JSON string from asyncpg JSONB columns
+    raw_params = task_data["parameters"]
+    if isinstance(raw_params, str):
+        task_data["parameters"] = _json.loads(raw_params)
+
     app_name = urlparse(_PROVISIONING_URL).hostname or "provisioning-agent"
     app_name = app_name.replace("-agent", "").replace("-", "_")
     session_id = str(uuid.uuid4())

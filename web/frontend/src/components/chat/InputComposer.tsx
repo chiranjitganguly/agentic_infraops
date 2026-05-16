@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 interface InputComposerProps {
   onSubmit: (text: string) => void
@@ -10,6 +10,15 @@ export function InputComposer({ onSubmit, loading = false, initialValue = '' }: 
   const [value, setValue] = useState(initialValue)
   const [shake, setShake] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-focus and place cursor at end when pre-filled (rephrase restore)
+  useEffect(() => {
+    if (initialValue && textareaRef.current) {
+      textareaRef.current.focus()
+      const len = initialValue.length
+      textareaRef.current.setSelectionRange(len, len)
+    }
+  }, []) // intentionally only on mount
 
   function submit() {
     const trimmed = value.trim()

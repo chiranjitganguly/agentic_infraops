@@ -85,14 +85,16 @@ def search_documents(
 
     query_vector = _embed(query)
 
-    # Dense vector search
-    dense_hits = client.search(
+    # Dense vector search (qdrant-client 1.x API)
+    from qdrant_client.models import NamedVector
+    response = client.query_points(
         collection_name=_COLLECTION,
-        query_vector=("dense", query_vector),
+        query=query_vector,
+        using="dense",
         limit=top_k * 2,
         with_payload=True,
-        score_threshold=0.0,
     )
+    dense_hits = response.points
 
     # RRF fusion (dense-only for now; BM25 requires Qdrant sparse vector support)
     results = []
@@ -201,6 +203,21 @@ def get_collection_stats() -> dict[str, Any]:
         "num_documents": info.points_count or 0,
         "index_status": info.status.value if info.status else "unknown",
     }
+
+
+@mcp.custom_route("/search", methods=["POST"])
+async def search_endpoint(request: Any) -> Any:
+    """REST shortcut for search_documents used by faq-agent."""
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+
+    body = await request.json()
+    results = search_documents(
+        query=body.get("query", ""),
+        top_k=int(body.get("top_k", 5)),
+        score_threshold=float(body.get("score_threshold", _SCORE_THRESHOLD)),
+    )
+    return JSONResponse(results)
 
 
 if __name__ == "__main__":

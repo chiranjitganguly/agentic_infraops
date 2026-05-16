@@ -58,14 +58,51 @@ async def _emit_audit_event(inp: EnquiryInput, outcome: str) -> None:
     )
 
 
+async def _list_resources_from_db(resource_type: ResourceType) -> list:
+    """Fallback: query provisioning_jobs in PostgreSQL when GCP API is unavailable."""
+    from contracts.agents.enquiry import ResourceSummary
+    try:
+        from mcp_servers.postgres.server import _get_pool
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT resource_name, status, zone, region, parameters FROM provisioning_jobs "
+                "WHERE resource_type=$1 AND status NOT IN ('failed','cancelled','rolled_back') "
+                "ORDER BY created_at DESC LIMIT 100",
+                resource_type.value,
+            )
+        summaries = []
+        for row in rows:
+            params = row["parameters"] or {}
+            if isinstance(params, str):
+                import json
+                params = json.loads(params)
+            summaries.append(ResourceSummary(
+                resource_name=row["resource_name"],
+                resource_type=resource_type,
+                gcp_status=row["status"].upper(),
+                zone_or_region=row["zone"] or row["region"],
+                key_metadata=params.get("machine_type", "") if resource_type.value == "compute_instance" else "",
+                creation_timestamp=None,
+            ))
+        return summaries
+    except Exception as exc:
+        logger.warning("db_list_fallback_failed", error=str(exc))
+        return []
+
+
 async def handle_enquiry(inp: EnquiryInput) -> dict:
     """Core enquiry logic — injectable for testing."""
     now = datetime.now(timezone.utc)
     project_id = inp.project_id or _PROJECT_ID
 
     if inp.query_type == "list":
-        resources = list_resources(inp.resource_type, project_id)
-        summary = format_list_response(resources, inp.resource_type)
+        try:
+            resources = list_resources(inp.resource_type, project_id)
+        except Exception as exc:
+            logger.warning("gcp_list_failed_falling_back_to_db", error=str(exc))
+            resources = await _list_resources_from_db(inp.resource_type)
+        summary = format_list_response(resources, inp.resource_type, project_id)
         await _emit_audit_event(inp, "listed")
         return EnquiryListOutput(
             correlation_id=inp.correlation_id,
@@ -114,6 +151,7 @@ async def handle_enquiry(inp: EnquiryInput) -> dict:
         gcp_status=result["gcp_status"],
         resource_name=result["resource_name"],
         resource_type=inp.resource_type,
+        project_id=project_id,
     )
     await _emit_audit_event(inp, "found")
     return EnquiryFoundOutput(

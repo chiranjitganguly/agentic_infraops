@@ -17,10 +17,15 @@ x-airflow-common: &airflow-common
     LITELLM_GATEWAY_URL: http://litellm:4000
     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
     GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/gcp-sa.json
+    PYTHONPATH: /opt/airflow/dags:/opt/infraops
+    _PIP_ADDITIONAL_REQUIREMENTS: "structlog pydantic circuitbreaker prometheus_client"
   volumes:
     - ../workflows/dags:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
     - ../secrets:/opt/gcp:ro
+    - ../mcp_servers:/opt/infraops/mcp_servers:ro
+    - ../contracts:/opt/infraops/contracts:ro
+    - ../skills:/opt/infraops/skills:ro
   depends_on:
     postgres:
       condition: service_healthy
@@ -98,7 +103,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness', timeout=5)\" || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -114,6 +119,7 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
       - "--web.console.libraries=/etc/prometheus/console_libraries"
       - "--web.console.templates=/etc/prometheus/consoles"
 
@@ -129,6 +135,28 @@ services:
       - ../observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     depends_on:
       - prometheus
+
+  # ─── System Init (runs migrations + PubSub setup + default user) ─────────────
+  infraops-init:
+    build:
+      context: ..
+      dockerfile: docker/services/infraops_init/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      DEFAULT_USER_ID: ${DEFAULT_USER_ID:-cg4ai@gmail.com}
+      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-developer}
+      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-password}
+      PLATFORM_USER_ID: ${PLATFORM_USER_ID:-platformengg@infraops.com}
+      PLATFORM_USER_ROLE: ${PLATFORM_USER_ROLE:-platform_engineer}
+      PLATFORM_PASSWORD: ${PLATFORM_PASSWORD:-password}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub-emulator:
+        condition: service_healthy
+    restart: "no"
 
   # ─── Airflow ─────────────────────────────────────────────────────────────────
   airflow-webserver:
@@ -189,8 +217,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MCP_PORT: "8092"
     depends_on:
-      postgres:
-        condition: service_healthy
+      infraops-init:
+        condition: service_completed_successfully
 
   mcp-pubsub:
     build:
@@ -203,7 +231,8 @@ services:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       MCP_PORT: "8091"
     depends_on:
-      - pubsub-emulator
+      infraops-init:
+        condition: service_completed_successfully
 
   mcp-gcp-resource:
     build:
@@ -292,9 +321,12 @@ services:
       PROVISIONING_AGENT_URL: http://provisioning-agent:8002
       ENQUIRY_AGENT_URL: http://enquiry-agent:8003
       FAQ_AGENT_URL: http://faq-agent:8004
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
     depends_on:
-      - litellm
-      - mcp-postgres
+      infraops-init:
+        condition: service_completed_successfully
+      litellm:
+        condition: service_healthy
 
   provisioning-agent:
     build:
@@ -308,8 +340,10 @@ services:
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
     depends_on:
-      - mcp-postgres
-      - mcp-pubsub
+      infraops-init:
+        condition: service_completed_successfully
+      mcp-pubsub:
+        condition: service_started
 
   enquiry-agent:
     build:
@@ -321,9 +355,12 @@ services:
       PORT: "8003"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-sa.json
+    volumes:
+      - ../secrets/gcp-sa.json:/secrets/gcp-sa.json:ro
     depends_on:
-      - mcp-postgres
-      - mcp-gcp-resource
+      infraops-init:
+        condition: service_completed_successfully
 
   faq-agent:
     build:
@@ -338,9 +375,10 @@ services:
       FAQ_GENERATION_MODEL: ${FAQ_GENERATION_MODEL}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
-      - litellm
-      - mcp-knowledge-base
-      - mcp-postgres
+      infraops-init:
+        condition: service_completed_successfully
+      litellm:
+        condition: service_healthy
 
   web-backend:
     build:
@@ -353,10 +391,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       ORCHESTRATOR_AGENT_URL: http://orchestrator-agent:8001
       PROVISIONING_AGENT_URL: http://provisioning-agent:8002
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3001}
+      JWT_SECRET: ${JWT_SECRET:-infraops-jwt-secret-change-in-prod}
     depends_on:
-      postgres:
-        condition: service_healthy
+      infraops-init:
+        condition: service_completed_successfully
       orchestrator-agent:
         condition: service_started
 
@@ -382,8 +421,10 @@ services:
       PROVISIONING_AGENT_URL: http://provisioning-agent:8002
       GMAIL_POLL_INTERVAL_SECONDS: "30"
     depends_on:
-      - orchestrator-agent
-      - mcp-gmail
+      infraops-init:
+        condition: service_completed_successfully
+      mcp-gmail:
+        condition: service_started
 
   notification-service:
     build:
@@ -394,8 +435,8 @@ services:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       PUBSUB_STATUS_SUBSCRIPTION: infraops-provisioning-status-sub
     depends_on:
-      - pubsub-emulator
-      - mcp-gmail
+      infraops-init:
+        condition: service_completed_successfully
 
 volumes:
   postgres-data:
