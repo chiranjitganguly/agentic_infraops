@@ -228,6 +228,12 @@ async def update_request_status(
     confirmed_at: str | None = None,
 ) -> dict[str, Any]:
     """Update infra request status and optional classification fields."""
+    from datetime import datetime as _dt
+
+    confirmed_at_dt: _dt | None = None
+    if confirmed_at is not None:
+        confirmed_at_dt = _dt.fromisoformat(confirmed_at)
+
     pool = await _get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -239,7 +245,7 @@ async def update_request_status(
                 normalized_params = COALESCE($5::jsonb, normalized_params),
                 clarification_question = COALESCE($6, clarification_question),
                 confirmation_summary = COALESCE($7, confirmation_summary),
-                confirmed_at = COALESCE($8::timestamptz, confirmed_at),
+                confirmed_at = COALESCE($8, confirmed_at),
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -251,7 +257,7 @@ async def update_request_status(
             json.dumps(normalized_params) if normalized_params is not None else None,
             clarification_question,
             confirmation_summary,
-            confirmed_at,
+            confirmed_at_dt,
         )
     if row is None:
         return {}

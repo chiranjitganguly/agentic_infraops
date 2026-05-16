@@ -16,9 +16,11 @@ x-airflow-common: &airflow-common
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     LITELLM_GATEWAY_URL: http://litellm:4000
     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/gcp/gcp-sa.json
   volumes:
     - ../workflows/dags:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
+    - ../secrets:/opt/gcp:ro
   depends_on:
     postgres:
       condition: service_healthy

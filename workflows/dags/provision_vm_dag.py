@@ -19,7 +19,7 @@ import logging
 import os
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from airflow import DAG
 from airflow.models import TaskInstance
@@ -326,7 +326,7 @@ with DAG(
         subscription=_SUBSCRIPTION,
         max_messages=1,
         ack_messages=True,
-        messages_callback=lambda messages, **kw: [
+        messages_callback=lambda messages, context, **kw: [
             m for m in messages if json.loads(m.get("data", "{}")).get("resource_type") == "compute_instance"
         ],
         poke_interval=10,
@@ -348,7 +348,7 @@ with DAG(
         task_id="provision_vm",
         python_callable=task_provision_vm,
         retries=3,
-        retry_delay=None,
+        retry_delay=timedelta(seconds=30),
         retry_exponential_backoff=True,
         max_retry_delay=300,
     )

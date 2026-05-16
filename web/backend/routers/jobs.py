@@ -78,23 +78,46 @@ async def confirm_job(job_id: uuid.UUID, request: Request) -> JSONResponse:
         "confirmed": True,
     }
 
+    import json as _json
+    from urllib.parse import urlparse
+
+    app_name = urlparse(_PROVISIONING_URL).hostname or "provisioning-agent"
+    app_name = app_name.replace("-agent", "").replace("-", "_")
+    session_id = str(uuid.uuid4())
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
+            await client.post(
+                f"{_PROVISIONING_URL}/apps/{app_name}/users/web-backend/sessions/{session_id}",
+                json={},
+            )
             response = await client.post(
-                f"{_PROVISIONING_URL}/tasks",
+                f"{_PROVISIONING_URL}/run",
                 json={
-                    "id": str(uuid.uuid4()),
-                    "message": {"role": "user", "parts": [{"type": "data", "data": task_data}]},
+                    "appName": app_name,
+                    "userId": "web-backend",
+                    "sessionId": session_id,
+                    "newMessage": {
+                        "role": "user",
+                        "parts": [{"text": _json.dumps(task_data)}],
+                    },
                 },
             )
             response.raise_for_status()
-            result = response.json()
-            artifacts = result.get("artifacts", [])
-            sub_result: dict[str, Any] = {}
-            if artifacts:
-                parts = artifacts[0].get("parts", [])
-                if parts:
-                    sub_result = parts[0].get("data", {})
+            events = response.json()
+
+        sub_result: dict[str, Any] = {}
+        if isinstance(events, list):
+            for event in reversed(events):
+                for part in event.get("content", {}).get("parts", []):
+                    if "text" in part:
+                        try:
+                            sub_result = _json.loads(part["text"])
+                            break
+                        except (_json.JSONDecodeError, TypeError):
+                            pass
+                if sub_result:
+                    break
     except httpx.HTTPError as exc:
         logger.error("provisioning_confirm_failed", job_id=str(job_id), error=str(exc))
         raise HTTPException(status_code=502, detail="Provisioning agent unavailable.")
