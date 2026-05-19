@@ -8,9 +8,9 @@
  *   event: done\ndata: \n\n
  */
 import type { SseStatusEventData } from '@/types/api'
+import { getStoredToken } from '@/api/client'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
-const API_KEY = import.meta.env.VITE_API_KEY
 
 interface JobStreamHandle {
   close: () => void
@@ -27,12 +27,14 @@ export function openJobStream(
   const run = async () => {
     let response: Response
     try {
+      const token = getStoredToken()
+      const headers: Record<string, string> = {
+        Accept: 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       response = await fetch(`${BASE_URL}/jobs/${jobId}/stream`, {
-        headers: {
-          'X-API-Key': API_KEY,
-          Accept: 'text/event-stream',
-          'Cache-Control': 'no-cache',
-        },
+        headers,
         signal: controller.signal,
       })
     } catch (err) {

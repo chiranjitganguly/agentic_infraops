@@ -37,7 +37,7 @@ Build a ReactJS + TypeScript single-page application that provides a conversatio
 | IV — Safety & Guardrails | ✅ Pass | No infrastructure mutation from frontend; all guardrails enforced in backend |
 | V — Idempotency & Resilience | ✅ Pass | SSE reconnect logic (3 attempts); countdown expiry calls cancel explicitly |
 | VI — Contract-First | ✅ Pass | TypeScript API contracts generated in Phase 1 before component implementation |
-| X — Approved Technology Standards | ⚠️ Justified Exception | React/TypeScript is not in the Python-centric approved list. Justified: the constitution's technology standards target backend agents/skills/DAGs. The web UI layer is a new concern — ReactJS is the spec-mandated choice reviewed during speckit-clarify. No architectural review override needed. |
+| X — Approved Technology Standards | ⚠️ Justified Exception | React/TypeScript is not in the Python-centric approved list. Justified: the constitution's technology standards target backend agents/business_logic/DAGs. The web UI layer is a new concern — ReactJS is the spec-mandated choice reviewed during speckit-clarify. No architectural review override needed. |
 | XIV — Testing Standards | ✅ Pass | Vitest unit tests + Playwright smoke test required |
 | XV — Containerization | ✅ Pass | Nginx Dockerfile + docker-compose service required |
 

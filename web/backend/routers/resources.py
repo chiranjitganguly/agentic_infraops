@@ -13,8 +13,8 @@ from fastapi.responses import JSONResponse
 
 from contracts.agents.enquiry import ResourceType
 from contracts.shared.logging import get_logger
-from skills.status_query.formatter import format_list_response, format_status_response
-from skills.status_query.querier import list_resources, query_resource_status
+from business_logic.status_query.formatter import format_list_response, format_status_response
+from business_logic.status_query.querier import list_resources, query_resource_status
 
 logger = get_logger("resources-router")
 router = APIRouter(tags=["resources"])

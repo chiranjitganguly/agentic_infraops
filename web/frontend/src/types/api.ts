@@ -52,17 +52,16 @@ export interface ClarificationNeededResponse {
   trace?: TraceEntry[]
 }
 
-/** HTTP 202 — provisioning intent routed */
+/** HTTP 202/200 — provisioning intent routed */
 export interface ProvisioningRoutedResponse {
   infra_request_id: string
   job_id: string
   intent: 'provision'
-  status: 'awaiting_confirmation'
-  confirmation_summary: Record<string, unknown> // GCP params; rendered as key/value
-  expires_at: string // ISO-8601
+  status: 'awaiting_confirmation' | 'queued' | 'in_progress' | 'completed' | 'failed'
+  confirmation_summary: string | null // human-readable summary; null when job already active
+  expires_at: string | null // ISO-8601; null when job already active
+  intent_summary?: string | null
   correlation_id: string
-  // Backend extension required — absent until deployed:
-  intent_summary?: string
   trace?: TraceEntry[]
 }
 

@@ -117,7 +117,7 @@ def task_dry_run_validate(**context: object) -> None:
     import asyncio
 
     from contracts.agents.provisioning import VMParameters
-    from skills.gcp_compute.provisioner import create_vm
+    from business_logic.gcp_compute.provisioner import create_vm
 
     data = context["ti"].xcom_pull(task_ids="update_in_progress", key="job_data")
     if data is None:
@@ -161,7 +161,7 @@ def task_provision_vm(**context: object) -> None:
     import asyncio
 
     from contracts.agents.provisioning import VMParameters
-    from skills.gcp_compute.provisioner import create_vm
+    from business_logic.gcp_compute.provisioner import create_vm
 
     ti: TaskInstance = context["ti"]
     data = ti.xcom_pull(task_ids="update_in_progress", key="job_data")
@@ -303,6 +303,8 @@ def task_register_backstage(**context: object) -> None:
     if backstage_token:
         headers["Authorization"] = f"Bearer {backstage_token}"
 
+    backstage_required = os.environ.get("BACKSTAGE_REQUIRED", "false").lower() == "true"
+
     try:
         with httpx.Client(timeout=30) as client:
             response = client.post(
@@ -311,11 +313,12 @@ def task_register_backstage(**context: object) -> None:
                 headers=headers,
             )
             response.raise_for_status()
+        log.info("backstage_registered job_id=%s resource=%s", data["job_id"], data["resource_name"])
     except httpx.HTTPError as exc:
         log.warning("backstage_registration_failed job_id=%s error=%s", data["job_id"], exc)
-        raise RuntimeError(f"Backstage registration failed: {exc}") from exc
-
-    log.info("backstage_registered job_id=%s resource=%s", data["job_id"], data["resource_name"])
+        if backstage_required:
+            raise RuntimeError(f"Backstage registration failed: {exc}") from exc
+        log.warning("backstage_registration_skipped_not_required job_id=%s", data["job_id"])
 
 
 def task_update_succeeded(**context: object) -> None:
@@ -340,7 +343,7 @@ def task_rollback_vm(**context: object) -> None:
     import json as _json
 
     from contracts.schemas.provisioning_job import RollbackResource
-    from skills.gcp_compute.rollback import rollback_vm
+    from business_logic.gcp_compute.rollback import rollback_vm
 
     ti: TaskInstance = context["ti"]
     data = ti.xcom_pull(task_ids="update_in_progress", key="job_data")
@@ -463,7 +466,7 @@ with DAG(
     update_failed = PythonOperator(
         task_id="update_failed",
         python_callable=task_update_failed,
-        trigger_rule=TriggerRule.ALL_DONE,
+        trigger_rule=TriggerRule.ALL_SUCCESS,
     )
 
     (

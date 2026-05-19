@@ -10,7 +10,7 @@ from agents.orchestrator.agent import (
     Outcome,
     route,
 )
-from skills.intent_classification.classifier import (
+from business_logic.intent_classification.classifier import (
     ClassificationResult,
     NormalizedEnquiryRequest,
     NormalizedVMRequest,

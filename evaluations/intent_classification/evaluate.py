@@ -29,7 +29,7 @@ _INTENTS = ["provision", "enquiry", "faq"]
 
 
 async def _classify_one(row: dict, verbose: bool) -> dict:
-    from skills.intent_classification.classifier import classify
+    from business_logic.intent_classification.classifier import classify
 
     input_text = row["input"]
     expected = row["expected_intent"]

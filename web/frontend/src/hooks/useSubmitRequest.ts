@@ -59,6 +59,7 @@ export function useSubmitRequest(): UseSubmitRequestReturn {
     appendMessage,
     updateMessage,
     updateTrace,
+    setActiveJobId,
   } = useConversationsStore()
 
   const submitQuery = useCallback(
@@ -130,6 +131,7 @@ export function useSubmitRequest(): UseSubmitRequestReturn {
           })
           updateTrace(convId, response.trace ?? [])
         } else if (isProvisioning(response)) {
+          const alreadyActive = response.status !== 'awaiting_confirmation'
           updateMessage(convId, assistantMsgId, {
             loading: false,
             intent: 'provision',
@@ -140,12 +142,16 @@ export function useSubmitRequest(): UseSubmitRequestReturn {
               intent: 'provision',
               confidence: null,
               job_id: response.job_id,
-              confirmation_summary: response.confirmation_summary,
-              expires_at: response.expires_at,
-              confirmed: false,
+              confirmation_summary: response.confirmation_summary ?? null,
+              expires_at: response.expires_at ?? null,
+              // Mark as already confirmed so the timeline shows immediately
+              confirmed: alreadyActive,
               cancelled: false,
             },
           })
+          if (alreadyActive) {
+            setActiveJobId(convId, response.job_id)
+          }
           updateTrace(convId, response.trace ?? [])
         } else if (isClarification(response)) {
           updateMessage(convId, assistantMsgId, {

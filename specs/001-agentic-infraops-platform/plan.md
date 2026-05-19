@@ -14,7 +14,7 @@ Build a multi-agent, event-driven infrastructure self-service platform on GCP su
 **Storage**: PostgreSQL 15 in Docker (ProvisioningJob state, audit log, user roles, API keys); Qdrant in Docker (FAQ knowledge base — hybrid BM25 + dense vector)
 **Testing**: pytest with pytest-asyncio; contract tests via pydantic validation; Airflow DAG unit tests via `pytest-airflow`
 **Target Platform**: Docker Compose (local development); GCP + Kubernetes (future cloud deployment)
-**Project Type**: Multi-service monorepo platform (agents + skills + MCP servers + workflows + web UI)
+**Project Type**: Multi-service monorepo platform (agents + business_logic + MCP servers + workflows + web UI)
 **Performance Goals**: Provisioning end-to-end ≤10 min; status enquiry response ≤30 s; FAQ response ≤60 s; 50 concurrent requests without degradation
 **Constraints**: Stateless agents; horizontal scaling; 99.5% monthly uptime target; API key auth (≤90 day expiry); email requests under developer-role guardrails only; 20-minute confirmation timeout; developer daily provisioning cap of 10 resources
 **Scale/Scope**: Phase 1 — developer + platform engineer users; VM + bucket + basic VPC provisioning; all GCP resources in project queryable
@@ -31,11 +31,11 @@ Build a multi-agent, event-driven infrastructure self-service platform on GCP su
 | IV. Safety & Guardrails | ⚠️ Gap | **Dry-run capability** and **circuit breakers for GCP APIs** required by constitution but not in spec — added as plan-level requirements below |
 | V. Idempotency & Resilience | ✅ Pass | Idempotency key = `(resource_type, name, region)`; exponential backoff with jitter; full rollback on partial failure |
 | VI. Contract-First | ✅ Pass | Schemas, event contracts, MCP interfaces, and A2A agent contracts defined before implementation |
-| VII. Agent Governance | ✅ Pass | Each agent has explicit contract; business logic in skills, not DAGs; DAGs are thin orchestration wrappers |
+| VII. Agent Governance | ✅ Pass | Each agent has explicit contract; business logic in business_logic, not DAGs; DAGs are thin orchestration wrappers |
 | VIII. Knowledge & FAQ | ✅ Pass | Hybrid retrieval (BM25 + vector); Qdrant; source attribution enforced |
 | IX. Cloud Extensibility | ✅ Pass | GCP logic isolated behind MCP server adapters and skills |
 | X. Approved Technology | ✅ Pass | Python, Google ADK, Airflow, Backstage, PubSub, GCP, LiteLLM, MCP, pytest, Docker — all approved |
-| XI. Skills-First | ✅ Pass | Six shared skill packages defined; agents orchestrate skills |
+| XI. Skills-First | ✅ Pass | Six shared skill packages defined; agents orchestrate business_logic modules |
 | XII. LLM Access | ✅ Pass | All LLM access via LiteLLM gateway; direct provider SDK prohibited |
 | XIII. Python Engineering | ✅ Pass | Type hints, Pydantic, Ruff, Black, async-first patterns |
 | XIV. Testing & Evaluation | ✅ Pass | pytest, integration tests, contract tests, evaluation datasets, hallucination checks |
@@ -73,7 +73,7 @@ agentic_infraops/
 │   ├── provisioning/          # Provisioning task execution, PubSub publishing
 │   ├── enquiry/               # GCP resource status retrieval
 │   └── faq/                   # Hybrid retrieval + answer generation
-├── skills/
+├── business_logic/
 │   ├── gcp_compute/           # VM provisioning + dry-run + rollback
 │   ├── gcp_storage/           # Bucket provisioning + dry-run + rollback
 │   ├── gcp_network/           # VPC + subnet creation
@@ -188,7 +188,7 @@ tests/
 - End-to-end flow tests for all three primary flows
 
 ### Phase 9: Backstage & Documentation
-- Backstage catalog entries for all agents, skills, and MCP servers
+- Backstage catalog entries for all agents, business_logic modules, and MCP servers
 - Operational runbooks
 - Architecture documentation
 - Developer onboarding guide

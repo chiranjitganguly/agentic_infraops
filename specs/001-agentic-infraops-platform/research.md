@@ -98,7 +98,7 @@ export PUBSUB_EMULATOR_HOST=localhost:8085
 
 **Decision**: LiteLLM Proxy (Docker), configured via `litellm_config.yaml`
 
-**Rationale**: Provides a single OpenAI-compatible endpoint for all LLM calls from agents and skills. Supports model routing, caching, rate limiting, spend tracking, and provider fallback. Eliminates direct provider SDK imports in agent code (Constitution XII).
+**Rationale**: Provides a single OpenAI-compatible endpoint for all LLM calls from agents and business_logic modules. Supports model routing, caching, rate limiting, spend tracking, and provider fallback. Eliminates direct provider SDK imports in agent code (Constitution XII).
 
 **Configuration highlights**:
 ```yaml
@@ -227,7 +227,7 @@ Request → X-API-Key header → FastAPI middleware → bcrypt verify against DB
 
 ## 10. Circuit Breaker Pattern (PLR-002)
 
-**Decision**: `circuitbreaker` Python library wrapping all GCP API calls in skills
+**Decision**: `circuitbreaker` Python library wrapping all GCP API calls in business_logic
 
 **Configuration**:
 ```python

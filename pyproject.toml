@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["agents", "contracts", "skills", "mcp_servers", "workflows", "web", "evaluations", "infrastructure", "tests"]
+src = ["agents", "contracts", "business_logic", "mcp_servers", "workflows", "web", "evaluations", "infrastructure", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -40,7 +40,7 @@ ignore = [
 "infrastructure/scripts/**/*.py" = ["S"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["agents", "contracts", "skills", "mcp_servers", "workflows", "web", "evaluations"]
+known-first-party = ["agents", "contracts", "business_logic", "mcp_servers", "workflows", "web", "evaluations"]
 force-sort-within-sections = true
 
 # ─── Black ────────────────────────────────────────────────────────────────────

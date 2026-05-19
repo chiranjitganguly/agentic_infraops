@@ -87,7 +87,7 @@ def task_dry_run_validate(**context: object) -> None:
     import asyncio
 
     from contracts.agents.provisioning import VPCParameters
-    from skills.gcp_network.provisioner import create_vpc
+    from business_logic.gcp_network.provisioner import create_vpc
 
     ti: TaskInstance = context["ti"]
     data = ti.xcom_pull(task_ids="update_in_progress", key="job_data")
@@ -142,7 +142,7 @@ def task_provision_vpc(**context: object) -> None:
     import asyncio
 
     from contracts.agents.provisioning import VPCParameters
-    from skills.gcp_network.provisioner import create_vpc
+    from business_logic.gcp_network.provisioner import create_vpc
 
     ti: TaskInstance = context["ti"]
     data = ti.xcom_pull(task_ids="update_in_progress", key="job_data")
@@ -259,7 +259,7 @@ def task_rollback_vpc(**context: object) -> None:
     import asyncio
 
     from contracts.schemas.provisioning_job import RollbackResource
-    from skills.gcp_network.rollback import rollback_vpc
+    from business_logic.gcp_network.rollback import rollback_vpc
 
     ti: TaskInstance = context["ti"]
     data = ti.xcom_pull(task_ids="update_in_progress", key="job_data")

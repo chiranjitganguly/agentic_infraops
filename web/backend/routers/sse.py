@@ -3,6 +3,9 @@
 Streams provisioning job status changes via asyncpg LISTEN/NOTIFY.
 Uses sse_starlette EventSourceResponse.
 Sends event: done and closes on terminal status.
+
+Race-condition fix: emits the current status immediately on connect so the
+frontend doesn't miss updates that happened before the SSE was established.
 """
 from __future__ import annotations
 
@@ -36,22 +39,44 @@ class _AsyncpgListener:
         try:
             await conn.add_listener(channel, _on_notify)
             while True:
-                payload = await queue.get()
+                payload = await asyncio.wait_for(queue.get(), timeout=30.0)
                 yield payload
+        except asyncio.TimeoutError:
+            # Yield a keepalive comment — SSE clients ignore lines starting with ":"
+            return
         finally:
             await conn.remove_listener(channel, _on_notify)
             await conn.close()
 
 
+async def _fetch_current_status(job_id: str, dsn: str) -> str | None:
+    conn: asyncpg.Connection = await asyncpg.connect(dsn)
+    try:
+        row = await conn.fetchrow(
+            "SELECT status::text FROM provisioning_jobs WHERE id = $1::uuid", job_id
+        )
+        return row["status"] if row else None
+    finally:
+        await conn.close()
+
+
 async def job_status_stream(
     job_id: uuid.UUID,
     db_listener: _AsyncpgListener,
+    dsn: str,
 ) -> AsyncIterator[dict[str, str]]:
     """Yield SSE events for a provisioning job until it reaches a terminal state.
 
-    Filters LISTEN/NOTIFY payloads to only those matching job_id.
-    Emits event:status for each matching update and event:done (empty data) on terminal.
+    Immediately emits the current status on connect to avoid the race where the
+    job completes before the stream is established.
     """
+    current = await _fetch_current_status(str(job_id), dsn)
+    if current:
+        yield {"event": "status", "data": json.dumps({"job_id": str(job_id), "status": current})}
+        if current in _TERMINAL_STATUSES:
+            yield {"event": "done", "data": ""}
+            return
+
     async for payload in db_listener.listen("infraops_job_status"):
         data = json.loads(payload)
         if data.get("job_id") != str(job_id):
@@ -71,7 +96,7 @@ async def stream_job_status(job_id: uuid.UUID, request: Request) -> EventSourceR
     listener = _AsyncpgListener(dsn)
 
     async def event_generator() -> AsyncIterator[dict]:
-        async for event in job_status_stream(job_id=job_id, db_listener=listener):
+        async for event in job_status_stream(job_id=job_id, db_listener=listener, dsn=dsn):
             if await request.is_disconnected():
                 break
             yield event

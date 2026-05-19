@@ -55,19 +55,11 @@ export function IntentConfirmationCard({
         </p>
       )}
 
-      {confirmation.confirmation_summary &&
-        Object.keys(confirmation.confirmation_summary).length > 0 && (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            {Object.entries(confirmation.confirmation_summary).map(([key, value]) => (
-              <div key={key} className="contents">
-                <dt className="text-surface-muted capitalize">{key.replace(/_/g, ' ')}</dt>
-                <dd className="font-medium text-surface-fg dark:text-surface-fg-dark truncate">
-                  {String(value)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
+      {confirmation.confirmation_summary && (
+        <pre className="whitespace-pre-wrap rounded-md bg-white/60 px-3 py-2 text-xs leading-relaxed text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+          {confirmation.confirmation_summary}
+        </pre>
+      )}
 
       <div className="flex items-center justify-between gap-3 pt-1">
         <div className="flex gap-2">

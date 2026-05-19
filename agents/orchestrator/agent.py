@@ -47,8 +47,8 @@ from contracts.shared.correlation import (
 )
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
-from skills.gcp_compute.guardrails import validate_provisioning_guardrails
-from skills.intent_classification.classifier import (
+from business_logic.gcp_compute.guardrails import validate_provisioning_guardrails
+from business_logic.intent_classification.classifier import (
     ClassificationResult,
     NormalizedBucketRequest,
     NormalizedEnquiryRequest,

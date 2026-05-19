@@ -29,8 +29,8 @@ from contracts.schemas.audit_event import AuditEventType
 from contracts.shared.audit import emit_audit_event
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
-from skills.status_query.formatter import format_list_response, format_status_response
-from skills.status_query.querier import list_resources, query_resource_status
+from business_logic.status_query.formatter import format_list_response, format_status_response
+from business_logic.status_query.querier import list_resources, query_resource_status
 
 configure_logging(service_name="enquiry-agent")
 logger = get_logger("enquiry-agent")

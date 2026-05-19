@@ -45,6 +45,6 @@ async def emit_audit_event(
             correlation_id=correlation_id,
             request_id=request_id,
         )
-        await postgres.create_audit_event(event.model_dump())
+        await postgres.create_audit_event(event.model_dump(mode="json"))
     except Exception as exc:
         logger.warning("audit_event_failed", error=str(exc), event_type=event_type.value)

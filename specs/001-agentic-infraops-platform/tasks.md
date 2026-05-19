@@ -25,8 +25,8 @@
 
 **Purpose**: Monorepo scaffolding, Docker Compose stack, Python packaging, CI/CD gates
 
-- [x] T001 Create monorepo directory structure per plan.md (`agents/`, `skills/`, `mcp_servers/`, `workflows/`, `contracts/`, `web/`, `evaluations/`, `infrastructure/`, `docker/`, `observability/`, `docs/`, `tests/`)
-- [x] T002 [P] Initialise Python package structure — create `pyproject.toml` for each package: `agents/orchestrator`, `agents/provisioning`, `agents/enquiry`, `agents/faq`, `skills/intent_classification`, `skills/gcp_compute`, `skills/gcp_storage`, `skills/gcp_network`, `skills/status_query`, `skills/document_retrieval`
+- [x] T001 Create monorepo directory structure per plan.md (`agents/`, `business_logic/`, `mcp_servers/`, `workflows/`, `contracts/`, `web/`, `evaluations/`, `infrastructure/`, `docker/`, `observability/`, `docs/`, `tests/`)
+- [x] T002 [P] Initialise Python package structure — create `pyproject.toml` for each package: `agents/orchestrator`, `agents/provisioning`, `agents/enquiry`, `agents/faq`, `business_logic/intent_classification`, `business_logic/gcp_compute`, `business_logic/gcp_storage`, `business_logic/gcp_network`, `business_logic/status_query`, `business_logic/document_retrieval`
 - [x] T003 [P] Initialise Python package structure for MCP servers — create `pyproject.toml` for each: `mcp_servers/gcp_resource`, `mcp_servers/knowledge_base`, `mcp_servers/postgres`, `mcp_servers/pubsub`, `mcp_servers/airflow`, `mcp_servers/backstage`, `mcp_servers/gmail`
 - [x] T004 [P] Write `docker/docker-compose.yml` defining all services: `postgres`, `qdrant`, `pubsub-emulator`, `litellm`, `airflow-webserver`, `airflow-scheduler`, `airflow-worker`, `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent`, `web-backend`, `web-frontend`, `gmail-poller`, `notification-service`, `prometheus`, `grafana`
 - [x] T005 [P] Write `docker/services/` Dockerfiles for each service (one per agent, one per MCP server, one for web-backend, one for gmail-poller, one for notification-service)
@@ -101,10 +101,10 @@
 
 ### Skills (US1 dependencies)
 
-- [ ] T041 [P] [US1] Implement `skills/intent_classification/classifier.py` — `classify(raw_input: str, channel: ChannelType) -> ClassificationResult` using LiteLLM (via gateway); returns `intent`, `confidence`, `normalized_params`; uses structured output / function calling to produce typed `VMParameters | BucketParameters | VPCParameters | EnquiryParams | FAQParams`; includes normalisation (extraction + resolution in one pass per `CONTEXT.md`)
-- [ ] T042 [US1] Implement `skills/gcp_compute/provisioner.py` — `create_vm(params: VMParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_vm`; on success appends to `rollback_resources` via `postgres-mcp` `update_job_status`; on `dry_run=True` validates without GCP call; wrapped with `@circuit_breaker`
-- [ ] T043 [US1] Implement `skills/gcp_compute/rollback.py` — `rollback_vm(rollback_resources: list[RollbackResource]) -> RollbackResult`; iterates `rollback_resources`, calls `gcp-resource-mcp` `delete_vm` for each; ignores 404 responses; logs each delete attempt
-- [ ] T044 [US1] Implement `skills/gcp_compute/guardrails.py` — `validate_developer_guardrails(params: VMParameters, user_role: UserRoleType) -> GuardrailResult`; checks region against `DeveloperGuardrails.allowed_regions`, machine_type against `DeveloperGuardrails.allowed_machine_types`; returns `GuardrailViolation` if outside bounds
+- [ ] T041 [P] [US1] Implement `business_logic/intent_classification/classifier.py` — `classify(raw_input: str, channel: ChannelType) -> ClassificationResult` using LiteLLM (via gateway); returns `intent`, `confidence`, `normalized_params`; uses structured output / function calling to produce typed `VMParameters | BucketParameters | VPCParameters | EnquiryParams | FAQParams`; includes normalisation (extraction + resolution in one pass per `CONTEXT.md`)
+- [ ] T042 [US1] Implement `business_logic/gcp_compute/provisioner.py` — `create_vm(params: VMParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_vm`; on success appends to `rollback_resources` via `postgres-mcp` `update_job_status`; on `dry_run=True` validates without GCP call; wrapped with `@circuit_breaker`
+- [ ] T043 [US1] Implement `business_logic/gcp_compute/rollback.py` — `rollback_vm(rollback_resources: list[RollbackResource]) -> RollbackResult`; iterates `rollback_resources`, calls `gcp-resource-mcp` `delete_vm` for each; ignores 404 responses; logs each delete attempt
+- [ ] T044 [US1] Implement `business_logic/gcp_compute/guardrails.py` — `validate_developer_guardrails(params: VMParameters, user_role: UserRoleType) -> GuardrailResult`; checks region against `DeveloperGuardrails.allowed_regions`, machine_type against `DeveloperGuardrails.allowed_machine_types`; returns `GuardrailViolation` if outside bounds
 
 ### Agents (US1)
 
@@ -167,9 +167,9 @@
 
 ### Skills (US2)
 
-- [ ] T062 [P] [US2] Implement `skills/gcp_storage/provisioner.py` — `create_bucket(params: BucketParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_bucket`; on success appends to `rollback_resources`; validates `BucketParameters` (bucket name regex, storage class enum); wrapped with `@circuit_breaker`
-- [ ] T063 [P] [US2] Implement `skills/gcp_storage/rollback.py` — `rollback_bucket(rollback_resources: list[RollbackResource]) -> RollbackResult`; calls `gcp-resource-mcp` `delete_bucket` for each; ignores 404
-- [ ] T064 [P] [US2] Implement `skills/gcp_storage/guardrails.py` — `validate_developer_guardrails(params: BucketParameters, user_role: UserRoleType) -> GuardrailResult`; checks `storage_class` against `DeveloperGuardrails.allowed_storage_classes`
+- [ ] T062 [P] [US2] Implement `business_logic/gcp_storage/provisioner.py` — `create_bucket(params: BucketParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_bucket`; on success appends to `rollback_resources`; validates `BucketParameters` (bucket name regex, storage class enum); wrapped with `@circuit_breaker`
+- [ ] T063 [P] [US2] Implement `business_logic/gcp_storage/rollback.py` — `rollback_bucket(rollback_resources: list[RollbackResource]) -> RollbackResult`; calls `gcp-resource-mcp` `delete_bucket` for each; ignores 404
+- [ ] T064 [P] [US2] Implement `business_logic/gcp_storage/guardrails.py` — `validate_developer_guardrails(params: BucketParameters, user_role: UserRoleType) -> GuardrailResult`; checks `storage_class` against `DeveloperGuardrails.allowed_storage_classes`
 
 ### Airflow DAG (US2)
 
@@ -208,8 +208,8 @@
 
 ### Skills (US3)
 
-- [x] T070 [P] [US3] Implement `skills/status_query/querier.py` — two functions: (1) `query_resource_status(resource_type, resource_name, project_id, zone, region) -> ResourceStatus` — calls appropriate `gcp-resource-mcp` status tool, deserialises raw GCP response into typed `VMMetadata | BucketMetadata | VPCMetadata`; (2) `list_resources(resource_type, project_id) -> list[ResourceSummary]` — calls `list_project_resources` MCP tool; both wrapped with `@circuit_breaker`
-- [x] T071 [P] [US3] Implement `skills/status_query/formatter.py` — `format_status_response(metadata: VMMetadata | BucketMetadata | VPCMetadata, gcp_status: str, resource_type: ResourceType) -> str`; per-type templates: VM → "{name} is {status} in {zone} ({machine_type})"; bucket → "{name}: {storage_class} in {location}, versioning {'on' if versioning_enabled else 'off'}"; VPC → "{name} is {status}, {subnet_count} subnet(s), routing {routing_mode}"; `format_list_response(resources: list[ResourceSummary], resource_type: ResourceType) -> str` → tabular summary
+- [x] T070 [P] [US3] Implement `business_logic/status_query/querier.py` — two functions: (1) `query_resource_status(resource_type, resource_name, project_id, zone, region) -> ResourceStatus` — calls appropriate `gcp-resource-mcp` status tool, deserialises raw GCP response into typed `VMMetadata | BucketMetadata | VPCMetadata`; (2) `list_resources(resource_type, project_id) -> list[ResourceSummary]` — calls `list_project_resources` MCP tool; both wrapped with `@circuit_breaker`
+- [x] T071 [P] [US3] Implement `business_logic/status_query/formatter.py` — `format_status_response(metadata: VMMetadata | BucketMetadata | VPCMetadata, gcp_status: str, resource_type: ResourceType) -> str`; per-type templates: VM → "{name} is {status} in {zone} ({machine_type})"; bucket → "{name}: {storage_class} in {location}, versioning {'on' if versioning_enabled else 'off'}"; VPC → "{name} is {status}, {subnet_count} subnet(s), routing {routing_mode}"; `format_list_response(resources: list[ResourceSummary], resource_type: ResourceType) -> str` → tabular summary
 
 ### Agent (US3)
 
@@ -246,8 +246,8 @@
 
 ### Skills (US4)
 
-- [x] T078 [P] [US4] Implement `skills/document_retrieval/retriever.py` — `retrieve(question: str, top_k: int = 5) -> list[RetrievedChunk]`; calls `knowledge-base-mcp` `search_documents`; returns empty list if no chunks above `score_threshold`; each chunk includes `chunk_text`, `source_doc`, `bm25_score`, `vector_score`, `final_score`
-- [x] T079 [P] [US4] Implement `skills/document_retrieval/answer_generator.py` — `generate_answer(question: str, chunks: list[RetrievedChunk]) -> FAQAnswerResult`; calls LiteLLM via gateway with retrieved chunks as context; prompt instructs model to cite sources and refuse to answer if chunks are not relevant; returns `answer`, `sources_cited`, `confidence`
+- [x] T078 [P] [US4] Implement `business_logic/document_retrieval/retriever.py` — `retrieve(question: str, top_k: int = 5) -> list[RetrievedChunk]`; calls `knowledge-base-mcp` `search_documents`; returns empty list if no chunks above `score_threshold`; each chunk includes `chunk_text`, `source_doc`, `bm25_score`, `vector_score`, `final_score`
+- [x] T079 [P] [US4] Implement `business_logic/document_retrieval/answer_generator.py` — `generate_answer(question: str, chunks: list[RetrievedChunk]) -> FAQAnswerResult`; calls LiteLLM via gateway with retrieved chunks as context; prompt instructs model to cite sources and refuse to answer if chunks are not relevant; returns `answer`, `sources_cited`, `confidence`
 
 ### Agent (US4)
 
@@ -278,8 +278,8 @@
 **Independent Test**: Platform engineer submits "Create a VPC network named my-vpc with subnet 10.0.0.0/24 in us-central1" → confirm → DAG provisions VPC + subnet → succeeded.
 
 - [x] T086 [P] Extend `mcp_servers/gcp_resource/server.py` — add `create_vpc_network`, `create_subnetwork`, `delete_vpc_network` tools per `contracts/mcp-servers.md`
-- [x] T087 [P] Implement `skills/gcp_network/provisioner.py` — `create_vpc(params: VPCParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_vpc_network` then `create_subnetwork`; appends each created resource to `rollback_resources` after each successful call (ADR 0006)
-- [x] T088 [P] Implement `skills/gcp_network/rollback.py` — rollback in reverse order: delete subnet first, then VPC network; ignores 404
+- [x] T087 [P] Implement `business_logic/gcp_network/provisioner.py` — `create_vpc(params: VPCParameters, dry_run: bool) -> ProvisionResult`; calls `gcp-resource-mcp` `create_vpc_network` then `create_subnetwork`; appends each created resource to `rollback_resources` after each successful call (ADR 0006)
+- [x] T088 [P] Implement `business_logic/gcp_network/rollback.py` — rollback in reverse order: delete subnet first, then VPC network; ignores 404
 - [x] T089 Implement `workflows/dags/provision_vpc_dag.py` — same structure as VM/bucket DAGs; `PubSubPullSensor` filters `resource_type == vpc_network`; validates platform_engineer role before execution; same rollback group and Backstage registration hard requirement
 - [x] T090 Extend `agents/provisioning/agent.py` — add `VPCParameters` handling branch; guardrail check: reject if `user_role == developer` with `GuardrailViolation`
 
@@ -299,7 +299,7 @@
 
 - [x] T094 [P] Add Prometheus metrics instrumentation to all four agents — `intent_classification_duration_seconds`, `a2a_task_duration_seconds`, `a2a_task_total{outcome}` labelled by agent and outcome
 - [x] T095 [P] Add circuit breaker state metrics to all `mcp_servers/gcp_resource` tools — `circuit_breaker_state{tool}` gauge (0=closed, 1=half-open, 2=open); alert rule in `observability/prometheus/rules.yml` when any circuit opens
-- [x] T096 [P] Add Backstage catalog entries for all agents and skills — create `docs/backstage/` with `catalog-info.yaml` files for `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent` and all 6 skill packages
+- [x] T096 [P] Add Backstage catalog entries for all agents and business_logic modules — create `docs/backstage/` with `catalog-info.yaml` files for `orchestrator-agent`, `provisioning-agent`, `enquiry-agent`, `faq-agent` and all 6 skill packages
 
 ### Load Testing
 
@@ -337,14 +337,14 @@
 
 1. Contract tests → MCP servers → Skills → Agents → DAG/Web → Integration tests
 2. Models (Pydantic contracts) before services (agents/skills)
-3. MCP servers before skills (skills call MCP servers)
-4. Skills before agents (agents orchestrate skills)
+3. MCP servers before business_logic (skills call MCP servers)
+4. Business_logic before agents (agents orchestrate business_logic)
 
 ### Parallel Opportunities
 
 - All Phase 1 tasks marked [P] run in parallel
 - All Phase 2 schema tasks (T013–T015) sequential; contract models (T016–T025) all parallel; shared infra (T026–T032) all parallel
-- Within Phase 3: T033–T035 (contract tests), T036–T040 (MCP servers), T041 (classification skill) all parallel; T042–T044 (compute skills) parallel among themselves
+- Within Phase 3: T033–T035 (contract tests), T036–T040 (MCP servers), T041 (classification module) all parallel; T042–T044 (compute modules) parallel among themselves
 - US3 (Phase 5) and US4 (Phase 6) can be worked in parallel with US2 (Phase 4) by different developers
 
 ---
@@ -358,7 +358,7 @@ Launch together (no interdependencies, different files):
 - T038: mcp_servers/gcp_resource/server.py (VM subset)
 - T039: mcp_servers/backstage/server.py
 - T040: mcp_servers/gmail/server.py
-- T041: skills/intent_classification/classifier.py
+- T041: business_logic/intent_classification/classifier.py
 ```
 
 ---

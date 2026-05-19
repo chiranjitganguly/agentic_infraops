@@ -104,11 +104,11 @@ Email/chatbot → `web-backend` (FastAPI, port 8000) → `orchestrator-agent` (p
 
 ### Agent Design Pattern
 
-Agents are stateless. Business logic lives in **skills** (`agentic_infraops/skills/` and `skills/`), not in agents or DAGs. DAGs are thin orchestration wrappers. Agents communicate via Google ADK native A2A protocol. All agents implement `OrchestratorInput`/`OrchestratorOutput` style dataclass contracts.
+Agents are stateless. Business logic lives in **skills** (`agentic_infraops/business_logic/` and `business_logic/`), not in agents or DAGs. DAGs are thin orchestration wrappers. Agents communicate via Google ADK native A2A protocol. All agents implement `OrchestratorInput`/`OrchestratorOutput` style dataclass contracts.
 
-### Skills (Business Logic Layer)
+### Business Logic Layer
 
-`skills/gcp_compute/` — VM provisioning with `dry_run: bool` parameter (required by PLR-001: all provisioning skills must support dry-run). All GCP API calls wrapped with circuit breaker (opens after 5 consecutive failures, PLR-002).
+`business_logic/gcp_compute/` — VM provisioning with `dry_run: bool` parameter (required by PLR-001: all provisioning skills must support dry-run). All GCP API calls wrapped with circuit breaker (opens after 5 consecutive failures, PLR-002).
 
 ### MCP Servers
 
@@ -120,7 +120,7 @@ Pydantic v2 models define all inter-component interfaces. Located in `contracts/
 
 ### Key Architectural Decisions (see `docs/adr/`)
 
-- **ADR-0001**: Skills are the business logic layer — agents and DAGs must not contain provisioning logic directly
+- **ADR-0001**: Skills are the business logic layer — agents and DAGs must not contain business logic directly
 - **ADR-0002**: Single resource per request — no bulk operations
 - **ADR-0003**: Airflow DAG owns job state — agents publish once and await status events
 - **ADR-0004**: Provisioning job state machine — states: `pending → confirmed → queued → in_progress → completed | failed | rolled_back`

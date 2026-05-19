@@ -54,6 +54,7 @@ from contracts.shared.correlation import (
 )
 from contracts.shared.logging import configure_logging, get_logger
 from contracts.shared.metrics import start_metrics_server
+from mcp_servers.airflow import server as _af_server
 from mcp_servers.postgres import server as _pg_server
 from mcp_servers.pubsub import server as _ps_server
 
@@ -74,6 +75,10 @@ class PostgresClient(Protocol):
 
 class PubSubClient(Protocol):
     async def publish_provisioning_request(self, event: dict) -> dict: ...
+
+
+class AirflowClient(Protocol):
+    def trigger_dag_run(self, dag_id: str, conf: dict | None = None) -> dict: ...
 
 
 def _make_idempotency_key(resource_type: str, resource_name: str, region: str) -> str:
@@ -116,6 +121,7 @@ async def handle_task(
     inp: ProvisioningInput,
     postgres: PostgresClient,
     pubsub: PubSubClient,
+    airflow: AirflowClient | None = None,
 ) -> ProvisioningConfirmationOutput | ProvisioningQueuedOutput:
     """Core provisioning agent logic (injectable for testing)."""
     idempotency_key = _make_idempotency_key(
@@ -129,16 +135,52 @@ async def handle_task(
             idempotency_key=idempotency_key
         )
         if existing and existing.get("status") not in _TERMINAL_STATUSES:
+            existing_status = existing.get("status", "awaiting_confirmation")
             logger.info(
                 "provisioning_idempotency_hit",
                 idempotency_key=idempotency_key,
                 job_id=existing.get("id"),
+                existing_status=existing_status,
+            )
+            # If the job is already past awaiting_confirmation, tell the caller it's queued.
+            if existing_status != "awaiting_confirmation":
+                return ProvisioningQueuedOutput(
+                    correlation_id=inp.correlation_id,
+                    request_id=inp.request_id,
+                    job_id=uuid.UUID(existing["id"]),
+                )
+
+            # Rebuild confirmation_summary from the stored parameters.
+            existing_params: dict = existing.get("parameters") or {}
+            if isinstance(existing_params, str):
+                existing_params = json.loads(existing_params)
+            ex_resource_type = existing.get("resource_type", inp.resource_type.value)
+            ex_resource_name = existing.get("resource_name", inp.resource_name)
+            ex_region = existing.get("region", inp.region)
+            ex_zone = existing.get("zone", inp.zone)
+            try:
+                if ex_resource_type == "compute_instance":
+                    ex_typed: VMParameters | BucketParameters | VPCParameters | dict = VMParameters(**existing_params)
+                elif ex_resource_type == "storage_bucket":
+                    ex_typed = BucketParameters(**existing_params)
+                elif ex_resource_type == "vpc_network":
+                    ex_typed = VPCParameters(**existing_params)
+                else:
+                    ex_typed = existing_params
+            except Exception:
+                ex_typed = existing_params
+            rebuilt_summary = build_confirmation_summary(
+                params=ex_typed,
+                resource_name=ex_resource_name,
+                region=ex_region,
+                resource_type=ex_resource_type,
+                zone=ex_zone,
             )
             return ProvisioningConfirmationOutput(
                 correlation_id=inp.correlation_id,
                 request_id=inp.request_id,
                 job_id=uuid.UUID(existing["id"]),
-                confirmation_summary=existing.get("confirmation_summary", ""),
+                confirmation_summary=rebuilt_summary,
                 idempotency_key=idempotency_key,
                 existing_job=existing,
                 expires_at=datetime.now(timezone.utc) + timedelta(minutes=20),
@@ -232,6 +274,14 @@ async def handle_task(
         await postgres.update_job_status(job_id=str(job_id), status="awaiting_confirmation")
         raise ValueError(f"Failed to publish provisioning event: {pub_exc}") from pub_exc
 
+    # Trigger the Airflow DAG so the PubSubPullSensor picks up the message.
+    if airflow is not None:
+        try:
+            airflow.trigger_dag_run("provision_vm_dag", conf={"job_id": str(job_id)})
+        except Exception as af_exc:
+            # Non-fatal: PubSub message is already published; Airflow can be triggered manually.
+            logger.warning("airflow_trigger_failed", job_id=str(job_id), error=str(af_exc))
+
     await emit_audit_event(
         event_type=AuditEventType.request_confirmed,
         actor=inp.requesting_user,
@@ -278,6 +328,11 @@ class _DefaultPubSubClient:
         return _ps_server.publish_provisioning_request(event)  # type: ignore[arg-type]
 
 
+class _DefaultAirflowClient:
+    def trigger_dag_run(self, dag_id: str, conf: dict | None = None) -> dict:
+        return _af_server.trigger_dag_run(dag_id=dag_id, conf=conf)
+
+
 # ─── ADK Agent ──────────────────────────────────────────────────────────────
 
 class ProvisioningAgent(BaseAgent):
@@ -319,6 +374,7 @@ class ProvisioningAgent(BaseAgent):
                 inp=inp,
                 postgres=_DefaultPostgresClient(),
                 pubsub=_DefaultPubSubClient(),
+                airflow=_DefaultAirflowClient(),
             )
         except ValueError as exc:
             error_out = {"error": str(exc)}

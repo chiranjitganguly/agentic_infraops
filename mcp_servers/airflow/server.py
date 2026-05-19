@@ -1,8 +1,6 @@
 """T — airflow-mcp: MCP server wrapping the Airflow REST API for DAG run status queries.
 
-Tools: get_dag_run_status, list_dag_runs, get_task_instance
-
-Note: DAGs are triggered by PubSub sensor, not by this server.
+Tools: trigger_dag_run, get_dag_run_status, list_dag_runs, get_task_instance
 """
 from __future__ import annotations
 
@@ -30,6 +28,26 @@ def _client() -> httpx.Client:
         auth=(_AIRFLOW_USERNAME, _AIRFLOW_PASSWORD),
         timeout=30.0,
     )
+
+
+def trigger_dag_run(dag_id: str, conf: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Trigger a new DAG run. Returns the dag_run_id and state.
+
+    Args:
+        dag_id: The DAG to trigger (e.g. provision_vm_dag).
+        conf: Optional JSON config passed into the DAG run context.
+    """
+    import datetime as _dt
+    payload: dict[str, Any] = {
+        "dag_run_id": f"api__{_dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S')}",
+        "conf": conf or {},
+    }
+    with _client() as client:
+        resp = client.post(f"/dags/{dag_id}/dagRuns", json=payload)
+        resp.raise_for_status()
+        run = resp.json()
+    logger.info("trigger_dag_run", dag_id=dag_id, dag_run_id=run.get("dag_run_id"))
+    return {"dag_run_id": run.get("dag_run_id"), "state": run.get("state")}
 
 
 @mcp.tool()

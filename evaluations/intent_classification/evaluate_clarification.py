@@ -48,7 +48,7 @@ _CLEAR_INPUTS = [
 
 
 async def _run_check(input_text: str, should_clarify: bool, verbose: bool) -> dict:
-    from skills.intent_classification.classifier import classify
+    from business_logic.intent_classification.classifier import classify
 
     try:
         result = await classify(input_text, channel="web")

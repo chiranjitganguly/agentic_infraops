@@ -62,7 +62,7 @@ export interface IntentConfirmation {
   confidence: number | null
   // provisioning only:
   job_id: string | null
-  confirmation_summary: Record<string, unknown> | null
+  confirmation_summary: string | null
   expires_at: string | null // ISO-8601
   // state:
   confirmed: boolean

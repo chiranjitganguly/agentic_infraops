@@ -49,7 +49,7 @@ function routeResponse(
         intent: 'provision',
         confidence: null,
         job_id: r.job_id as string | null,
-        confirmation_summary: (r.confirmation_summary as Record<string, unknown> | null) ?? null,
+        confirmation_summary: (r.confirmation_summary as string | null) ?? null,
         expires_at: (r.expires_at as string | null) ?? null,
         confirmed: false,
         cancelled: false,

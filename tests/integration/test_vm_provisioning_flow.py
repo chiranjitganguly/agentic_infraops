@@ -29,7 +29,7 @@ from contracts.agents.provisioning import (
 )
 from contracts.schemas.provisioning_job import ResourceType
 from contracts.schemas.user_role import UserRoleType
-from skills.gcp_compute.provisioner import ProvisionResult, create_vm
+from business_logic.gcp_compute.provisioner import ProvisionResult, create_vm
 
 pytestmark = pytest.mark.integration
 

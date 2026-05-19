@@ -81,14 +81,24 @@ def _build_routed_response(
     trace = _build_trace(intent, sub_result)
 
     if intent == "provision":
+        confirmation_summary: str | None = sub_result.get("confirmation_summary") or None
+        # Derive a short intent_summary from the first line of the confirmation_summary.
+        intent_summary: str | None = None
+        if confirmation_summary:
+            first_line = confirmation_summary.splitlines()[0].strip()
+            if first_line:
+                intent_summary = first_line
+        job_status = sub_result.get("status", "awaiting_confirmation")
+        http_status = 202 if job_status == "awaiting_confirmation" else 200
         return JSONResponse(
-            status_code=202,
+            status_code=http_status,
             content={
                 "infra_request_id": str(infra_request_id),
                 "job_id": sub_result.get("job_id"),
                 "intent": intent,
-                "status": sub_result.get("status", "awaiting_confirmation"),
-                "confirmation_summary": sub_result.get("confirmation_summary"),
+                "status": job_status,
+                "intent_summary": intent_summary,
+                "confirmation_summary": confirmation_summary,
                 "expires_at": sub_result.get("expires_at"),
                 "correlation_id": str(correlation_id),
                 "trace": trace,

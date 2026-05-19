@@ -25,7 +25,7 @@ x-airflow-common: &airflow-common
     - ../secrets:/opt/gcp:ro
     - ../mcp_servers:/opt/infraops/mcp_servers:ro
     - ../contracts:/opt/infraops/contracts:ro
-    - ../skills:/opt/infraops/skills:ro
+    - ../business_logic:/opt/infraops/business_logic:ro
   depends_on:
     postgres:
       condition: service_healthy
@@ -135,6 +135,23 @@ services:
       - ../observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     depends_on:
       - prometheus
+
+  backstage:
+    build:
+      context: ..
+      dockerfile: docker/services/backstage/Dockerfile
+    ports:
+      - "7007:7007"
+    environment:
+      BACKSTAGE_API_TOKEN: ${BACKSTAGE_API_TOKEN}
+      APP_CONFIG_app_baseUrl: http://localhost:3002
+      APP_CONFIG_backend_baseUrl: http://localhost:7007
+      APP_CONFIG_backend_cors_origin: http://localhost:3002
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7007/api/catalog/entities?limit=1 -H 'Authorization: Bearer ${BACKSTAGE_API_TOKEN}' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # ─── System Init (runs migrations + PubSub setup + default user) ─────────────
   infraops-init:
@@ -271,9 +288,12 @@ services:
     ports:
       - "8096:8096"
     environment:
-      BACKSTAGE_API_URL: ${BACKSTAGE_API_URL}
+      BACKSTAGE_API_URL: http://backstage:7007/api
       BACKSTAGE_API_TOKEN: ${BACKSTAGE_API_TOKEN}
       MCP_PORT: "8096"
+    depends_on:
+      backstage:
+        condition: service_healthy
 
   mcp-gmail:
     build:
@@ -339,6 +359,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      AIRFLOW_API_URL: http://airflow-webserver:8080/api/v1
+      AIRFLOW_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      AIRFLOW_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
     depends_on:
       infraops-init:
         condition: service_completed_successfully

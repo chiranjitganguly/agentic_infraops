@@ -24,7 +24,7 @@ from agents.orchestrator.agent import route
 from contracts.agents.orchestrator import OrchestratorInput, OrchestratorOutput
 from contracts.schemas.infra_request import ChannelType, IntentType
 from contracts.schemas.user_role import UserRoleType
-from skills.intent_classification.classifier import ClassificationResult, NormalizedVMRequest, NormalizedBucketRequest, NormalizedEnquiryRequest
+from business_logic.intent_classification.classifier import ClassificationResult, NormalizedVMRequest, NormalizedBucketRequest, NormalizedEnquiryRequest
 
 pytestmark = pytest.mark.integration
 
